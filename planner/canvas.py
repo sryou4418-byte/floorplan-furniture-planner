@@ -2,6 +2,8 @@ from __future__ import annotations
 
 import streamlit as st
 
+CANVAS_VERSION = "0.3.0"
+
 HTML = """
 <div class="canvas-shell">
   <div class="canvas-tools">
