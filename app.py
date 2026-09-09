@@ -5,11 +5,19 @@ import base64
 import streamlit as st
 
 from planner.actions import apply_action
-from planner.canvas import planner_canvas
+import planner.canvas as canvas_module
+
 from planner.geometry import analyze, occupied_ratio
 from planner.models import Furniture, Room
 from planner.presets import PRESETS_BY_LABEL
 from planner.workspace import Workspace, download_name, export_workspace, import_workspace
+
+# A running Cloud worker can retain the previous imported component after deploy.
+if getattr(canvas_module, "CANVAS_VERSION", None) != "0.3.0":
+    import importlib
+
+    importlib.reload(canvas_module)
+planner_canvas = canvas_module.planner_canvas
 
 
 VERSION = "0.3.0"
