@@ -30,8 +30,13 @@ class Furniture:
     group: str = ""
     clearance_mm: float = 0.0
     id: str = field(default_factory=lambda: uuid4().hex)
+    shape: str = "rectangle"
 
     def validate(self) -> None:
+        if self.shape not in ("rectangle", "circle"):
+            raise ValueError("지원하지 않는 가구 모양입니다.")
+        if self.shape == "circle" and self.width_mm != self.depth_mm:
+            raise ValueError("원형 가구의 가로·세로는 같은 지름이어야 합니다.")
         if not self.name.strip():
             raise ValueError("가구 이름을 입력해 주세요.")
         if self.width_mm <= 0 or self.depth_mm <= 0:

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from math import hypot, pi
 
 from .models import Furniture, Room
 
@@ -78,6 +79,17 @@ def overlap_depth(a: Furniture, b: Furniture) -> tuple[float, float]:
 
 
 def overlaps(a: Furniture, b: Furniture) -> bool:
+    if a.shape == "circle" or b.shape == "circle":
+        circle, other = (a, b) if a.shape == "circle" else (b, a)
+        radius = circle.width_mm / 2
+        cx, cy = circle.x_mm + radius, circle.y_mm + radius
+        if other.shape == "circle":
+            r2 = other.width_mm / 2
+            return hypot(cx - other.x_mm - r2, cy - other.y_mm - r2) < radius + r2 - EPSILON
+        box = bounds(other)
+        closest_x = min(max(cx, box.left), box.right)
+        closest_y = min(max(cy, box.top), box.bottom)
+        return hypot(cx - closest_x, cy - closest_y) < radius - EPSILON
     overlap_x, overlap_y = overlap_depth(a, b)
     return overlap_x > EPSILON and overlap_y > EPSILON
 
@@ -102,4 +114,5 @@ def occupied_ratio(room: Room, items: list[Furniture]) -> float:
     room_area = room.width_mm * room.depth_mm
     if room_area <= 0:
         return 0.0
-    return sum(item.width_mm * item.depth_mm for item in items) / room_area
+    return sum(pi * (item.width_mm / 2) ** 2 if item.shape == "circle"
+               else item.width_mm * item.depth_mm for item in items) / room_area

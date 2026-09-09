@@ -6,18 +6,19 @@ import streamlit as st
 HTML = """
 <div class="canvas-shell">
   <div class="canvas-help">가구를 끌어서 이동 · Shift+클릭으로 여러 개 선택</div>
-  <svg id="planner-svg" role="application" aria-label="가구 배치 작업판"></svg>
+  <div class="canvas-viewport"><svg id="planner-svg" role="application" aria-label="가구 배치 작업판"></svg></div>
 </div>
 """
 
 CSS = """
 .canvas-shell { width: 100%; user-select: none; }
 .canvas-help { color: var(--st-text-color); opacity: .62; font-size: 12px; margin: 0 0 8px; }
-#planner-svg { display: block; max-width: 100%; margin: 0 auto; background: #f7f7f9; border: 1px solid rgba(128,128,128,.22); border-radius: 18px; touch-action: none; }
-.room-border { fill: transparent; stroke: rgba(60,60,67,.72); stroke-width: 18; vector-effect: non-scaling-stroke; }
-.furniture { cursor: grab; stroke-width: 10; vector-effect: non-scaling-stroke; }
+.canvas-viewport { width: 100%; max-height: 500px; overflow: auto; }
+#planner-svg { display: block; flex-shrink: 0; margin: 0 auto; background: #f7f7f9; border: 1px solid rgba(128,128,128,.22); border-radius: 8px; touch-action: none; }
+.room-border { fill: transparent; stroke: rgba(60,60,67,.72); stroke-width: 2; vector-effect: non-scaling-stroke; }
+.furniture { cursor: grab; stroke-width: 1; vector-effect: non-scaling-stroke; }
 .furniture:active { cursor: grabbing; }
-.furniture.selected { stroke: #007aff !important; stroke-width: 18; }
+.furniture.selected { stroke: #007aff !important; stroke-width: 2; }
 .furniture-label { pointer-events: none; text-anchor: middle; dominant-baseline: central; font-weight: 700; fill: #1d1d1f; }
 """
 
@@ -33,6 +34,8 @@ export default function(component) {
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   svg.setAttribute('tabindex', '0');
   svg.ownerDocument.onkeydown = event => {
+    if (event.composedPath().some(node => node.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(node.tagName))) return;
+    if (event.ctrlKey || event.metaKey || event.altKey || event.repeat) return;
     if ((event.key === 'Delete' || event.key === 'Backspace') && selected.size) {
       event.preventDefault();
       setTriggerValue('delete', {nonce: Date.now(), ids: [...selected]});
@@ -40,13 +43,18 @@ export default function(component) {
   };
 
   // Keep the complete room visible on a desktop screen while preserving scale.
-  const maxCanvasHeight = 500;
-  const availableWidth = svg.parentElement?.getBoundingClientRect().width || 760;
-  const roomRatio = room.width_mm / room.depth_mm;
-  const displayWidth = Math.min(availableWidth, maxCanvasHeight * roomRatio);
-  const displayHeight = displayWidth / roomRatio;
-  svg.style.width = `${displayWidth}px`;
-  svg.style.height = `${displayHeight}px`;
+  const viewport = svg.parentElement;
+  const fit = () => {
+    const availableWidth = Math.max(1, viewport.clientWidth - 4);
+    const roomRatio = room.width_mm / room.depth_mm;
+    const displayWidth = Math.min(availableWidth, 496 * roomRatio) * (data.zoom || 1);
+    svg.style.width = `${displayWidth}px`;
+    svg.style.height = `${displayWidth / roomRatio}px`;
+  };
+  viewport._resizeObserver?.disconnect();
+  viewport._resizeObserver = new ResizeObserver(fit);
+  viewport._resizeObserver.observe(viewport);
+  fit();
 
   if (data.image_data_url) {
     const image = document.createElementNS(ns, 'image');
@@ -81,7 +89,11 @@ export default function(component) {
     const group = document.createElementNS(ns, 'g');
     group.dataset.id = item.id;
     group.setAttribute('transform', `translate(${item.x_mm},${item.y_mm})`);
-    const rect = document.createElementNS(ns, 'rect');
+    const rect = document.createElementNS(ns, item.shape === 'circle' ? 'circle' : 'rect');
+    if (item.shape === 'circle') {
+      rect.setAttribute('cx', width / 2); rect.setAttribute('cy', width / 2);
+      rect.setAttribute('r', width / 2);
+    }
     rect.setAttribute('width', width); rect.setAttribute('height', depth);
     rect.setAttribute('rx', Math.min(width, depth) * .045);
     rect.setAttribute('fill', item.fill); rect.setAttribute('stroke', item.stroke);
@@ -90,7 +102,20 @@ export default function(component) {
     label.setAttribute('x', width / 2); label.setAttribute('y', depth / 2);
     label.setAttribute('font-size', Math.max(65, Math.min(width, depth) * .12));
     label.setAttribute('class', 'furniture-label');
-    label.textContent = `${item.name}  ${Math.round(item.width_mm)}×${Math.round(item.depth_mm)}`;
+    const sizeText = item.shape === 'circle'
+      ? `Ø ${Math.round(item.width_mm)} mm`
+      : `${Math.round(item.width_mm)} × ${Math.round(item.depth_mm)} mm`;
+    const fontSize = Math.min(Math.min(width, depth) * .14,
+      width * .8 / Math.max([...item.name].length, sizeText.length * .6, 1));
+    label.setAttribute('font-size', fontSize);
+    const nameLine = document.createElementNS(ns, 'tspan');
+    nameLine.setAttribute('x', width / 2); nameLine.setAttribute('dy', '-0.65em');
+    nameLine.textContent = item.name;
+    const sizeLine = document.createElementNS(ns, 'tspan');
+    sizeLine.setAttribute('x', width / 2); sizeLine.setAttribute('dy', '1.5em');
+    sizeLine.setAttribute('font-weight', '400');
+    sizeLine.textContent = sizeText;
+    label.append(nameLine, sizeLine);
     group.append(rect, label); svg.appendChild(group);
 
     rect.addEventListener('pointerdown', event => {
@@ -113,8 +138,9 @@ export default function(component) {
       if (!drag || drag.pointerId !== event.pointerId) return;
       const point = svgPoint(event); const dx = point.x - drag.start.x; const dy = point.y - drag.start.y;
       const moves = drag.ids.map(id => ({id, x_mm: drag.origins[id][0] + dx, y_mm: drag.origins[id][1] + dy}));
+      for (const move of moves) Object.assign(localItems.get(move.id), move);
       drag = null;
-      setTriggerValue('move', {nonce: Date.now(), moves});
+      if (Math.abs(dx) + Math.abs(dy) > .01) setTriggerValue('move', {nonce: Date.now(), moves});
     });
     rect.addEventListener('click', event => {
       if (event.detail === 0) return;
