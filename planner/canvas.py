@@ -200,4 +200,4 @@ export default function(component) {
 }
 """
 
-planner_canvas = st.components.v2.component("floorplan_furniture_canvas", html=HTML, css=CSS, js=JS)
+planner_canvas = st.components.v2.component("floorplan_furniture_canvas_v03", html=HTML, css=CSS, js=JS)
