@@ -8,6 +8,7 @@ from planner.canvas import planner_canvas
 from planner.geometry import analyze, occupied_ratio
 from planner.image_io import normalize_plan
 from planner.models import Furniture, Project, Room
+from planner.presets import PRESETS_BY_LABEL
 from planner.project_io import export_project, import_project
 
 
@@ -92,7 +93,20 @@ with st.sidebar:
     )
 
     st.divider()
-    st.subheader("도면")
+    st.subheader("성환고 호실")
+    preset_label = st.selectbox(
+        "기본 호실 선택",
+        ["직접 설정"] + list(PRESETS_BY_LABEL),
+        help="제공된 PDF의 2·3페이지 평면도를 기준으로 만든 호실별 도면입니다.",
+    )
+    st.caption("표시 치수는 구조 그리드 기준 공칭치수이며, 실제 벽 안쪽 유효치수와 차이가 날 수 있습니다.")
+    if preset_label != "직접 설정" and st.button("선택한 호실 열기", use_container_width=True):
+        PRESETS_BY_LABEL[preset_label].apply(project)
+        st.session_state.selected_ids = []
+        st.rerun()
+
+    st.divider()
+    st.subheader("사용자 도면")
     plan_file = st.file_uploader("PNG, JPG 또는 PDF", type=["png", "jpg", "jpeg", "pdf"], key="plan_upload")
     if plan_file and st.button("도면 적용", use_container_width=True):
         try:
