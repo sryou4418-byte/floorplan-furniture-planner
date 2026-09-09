@@ -32,7 +32,7 @@ export default function(component) {
   svg.setAttribute('viewBox', `0 0 ${room.width_mm} ${room.depth_mm}`);
   svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
   svg.setAttribute('tabindex', '0');
-  svg.onkeydown = event => {
+  svg.ownerDocument.onkeydown = event => {
     if ((event.key === 'Delete' || event.key === 'Backspace') && selected.size) {
       event.preventDefault();
       setTriggerValue('delete', {nonce: Date.now(), ids: [...selected]});
