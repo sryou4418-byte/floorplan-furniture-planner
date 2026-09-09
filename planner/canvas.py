@@ -13,7 +13,7 @@ HTML = """
 CSS = """
 .canvas-shell { width: 100%; user-select: none; }
 .canvas-help { color: var(--st-text-color); opacity: .62; font-size: 12px; margin: 0 0 8px; }
-#planner-svg { width: 100%; min-height: 580px; background: #f7f7f9; border: 1px solid rgba(128,128,128,.22); border-radius: 18px; touch-action: none; }
+#planner-svg { display: block; max-width: 100%; margin: 0 auto; background: #f7f7f9; border: 1px solid rgba(128,128,128,.22); border-radius: 18px; touch-action: none; }
 .room-border { fill: transparent; stroke: rgba(60,60,67,.72); stroke-width: 18; vector-effect: non-scaling-stroke; }
 .furniture { cursor: grab; stroke-width: 10; vector-effect: non-scaling-stroke; }
 .furniture:active { cursor: grabbing; }
@@ -30,7 +30,23 @@ export default function(component) {
   const selected = new Set(data.selected_ids || []);
   svg.replaceChildren();
   svg.setAttribute('viewBox', `0 0 ${room.width_mm} ${room.depth_mm}`);
-  svg.style.aspectRatio = `${room.width_mm} / ${room.depth_mm}`;
+  svg.setAttribute('preserveAspectRatio', 'xMidYMid meet');
+  svg.setAttribute('tabindex', '0');
+  svg.onkeydown = event => {
+    if ((event.key === 'Delete' || event.key === 'Backspace') && selected.size) {
+      event.preventDefault();
+      setTriggerValue('delete', {nonce: Date.now(), ids: [...selected]});
+    }
+  };
+
+  // Keep the complete room visible on a desktop screen while preserving scale.
+  const maxCanvasHeight = 500;
+  const availableWidth = parentElement.getBoundingClientRect().width || 760;
+  const roomRatio = room.width_mm / room.depth_mm;
+  const displayWidth = Math.min(availableWidth, maxCanvasHeight * roomRatio);
+  const displayHeight = displayWidth / roomRatio;
+  svg.style.width = `${displayWidth}px`;
+  svg.style.height = `${displayHeight}px`;
 
   if (data.image_data_url) {
     const image = document.createElementNS(ns, 'image');
@@ -78,7 +94,7 @@ export default function(component) {
     group.append(rect, label); svg.appendChild(group);
 
     rect.addEventListener('pointerdown', event => {
-      event.preventDefault(); rect.setPointerCapture(event.pointerId);
+      event.preventDefault(); svg.focus({preventScroll: true}); rect.setPointerCapture(event.pointerId);
       const point = svgPoint(event);
       const ids = targetIds(item);
       drag = { pointerId: event.pointerId, start: point, ids,
