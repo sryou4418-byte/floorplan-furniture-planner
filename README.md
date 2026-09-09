@@ -1,6 +1,10 @@
 # 도면 가구 배치 (Floorplan Furniture Planner)
 
+[![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://hynx9cgxdvl7xfesmdm3ys.streamlit.app/)
+
 도면 이미지를 배경으로 실제 치수의 사각형 가구를 배치하고, 방 안에 들어가는지와 가구끼리 겹치는지를 확인하는 Streamlit 앱입니다.
+
+- 공개 앱: https://hynx9cgxdvl7xfesmdm3ys.streamlit.app/
 
 ## 현재 기능 (v0.1)
 
