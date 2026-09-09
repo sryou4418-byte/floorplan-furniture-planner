@@ -41,7 +41,7 @@ export default function(component) {
 
   // Keep the complete room visible on a desktop screen while preserving scale.
   const maxCanvasHeight = 500;
-  const availableWidth = parentElement.getBoundingClientRect().width || 760;
+  const availableWidth = svg.parentElement?.getBoundingClientRect().width || 760;
   const roomRatio = room.width_mm / room.depth_mm;
   const displayWidth = Math.min(availableWidth, maxCanvasHeight * roomRatio);
   const displayHeight = displayWidth / roomRatio;
