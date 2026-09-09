@@ -30,6 +30,7 @@ def test_legacy_import_and_filename():
     project = work.open_room("1층 · 컴퓨터")
     restored = import_workspace(export_project(project))
     assert restored.active == work.active
+    assert restored.open_room("직접 설정").room.name == "공간"
     assert download_name(work, datetime(2026, 9, 10, 23, 1, 2, tzinfo=timezone.utc)) == "1층_컴퓨터_20260911_080102.fplan"
     work.project.room.name = 'a/b:c?'
     assert "a_b_c_" in download_name(work)

@@ -25,10 +25,11 @@ class Workspace:
 
     def open_room(self, key: str) -> Project:
         if key not in self.rooms:
-            if key not in PRESETS_BY_LABEL:
+            if key != "직접 설정" and key not in PRESETS_BY_LABEL:
                 raise ValueError("알 수 없는 호실입니다.")
             project = Project()
-            PRESETS_BY_LABEL[key].apply(project)
+            if key in PRESETS_BY_LABEL:
+                PRESETS_BY_LABEL[key].apply(project)
             self.rooms[key] = project
         self.active = key
         return self.project
