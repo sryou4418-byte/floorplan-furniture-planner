@@ -32,6 +32,14 @@ def update_from_canvas() -> None:
         if item.id in moves:
             item.x_mm = round(float(moves[item.id]["x_mm"]), 1)
             item.y_mm = round(float(moves[item.id]["y_mm"]), 1)
+            # Keep the coordinate editors in sync so their cached widget values
+            # do not overwrite a position that was just changed on the canvas.
+            x_key = f"x_{item.id}"
+            y_key = f"y_{item.id}"
+            if x_key in st.session_state:
+                st.session_state[x_key] = item.x_mm
+            if y_key in st.session_state:
+                st.session_state[y_key] = item.y_mm
 
 
 def select_from_canvas() -> None:
@@ -39,6 +47,17 @@ def select_from_canvas() -> None:
     payload = getattr(event, "select", None) if event else None
     if payload:
         st.session_state.selected_ids = payload["ids"]
+
+
+def delete_from_canvas() -> None:
+    event = st.session_state.get("planner_canvas")
+    payload = getattr(event, "delete", None) if event else None
+    if not payload:
+        return
+    deleted_ids = set(payload["ids"])
+    project: Project = st.session_state.project
+    project.furniture = [item for item in project.furniture if item.id not in deleted_ids]
+    st.session_state.selected_ids = []
 
 
 def image_data_url(project: Project) -> str | None:
@@ -208,4 +227,5 @@ with left:
         key="planner_canvas",
         on_move_change=update_from_canvas,
         on_select_change=select_from_canvas,
+        on_delete_change=delete_from_canvas,
     )
