@@ -1,6 +1,6 @@
 # 도면 가구 배치 (Floorplan Furniture Planner)
 
-Codex 개발 재개: [AGENTS.md](AGENTS.md) → [최신 전체 인수인계](docs/HANDOFF.md)를 먼저 읽으세요. 다음 모바일 개선은 아직 미구현이며 현재 공개 버전은 v0.3.0입니다.
+Codex 개발 재개: [AGENTS.md](AGENTS.md) → [최신 전체 인수인계](docs/HANDOFF.md)를 먼저 읽으세요. 현재 빌드는 v0.4.0입니다.
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://hynx9cgxdvl7xfesmdm3ys.streamlit.app/)
 
@@ -8,10 +8,15 @@ Codex 개발 재개: [AGENTS.md](AGENTS.md) → [최신 전체 인수인계](doc
 
 - 공개 앱: https://hynx9cgxdvl7xfesmdm3ys.streamlit.app/
 
-## 현재 기능 (v0.3.0)
+## 현재 기능 (v0.4.0)
+
+- 모바일 빈 도면 탭으로 샘플 가구 생성
+- 가구 탭으로 이름·원형/사각형·크기 입력, 적용 버튼으로 확정
+- 가구를 끌면 편집창이 닫히면서 이동 (미적용 입력은 취소)
+- 길게 누르면 흔들림과 × 삭제 버튼, 바깥 탭/완료로 종료
 
 - 호실 선택 즉시 전환과 화면 높이에 맞춘 넓은 도면 작업판
-- 가구 우클릭/길게 누르기: 이름 변경, 회전, 복사, 삭제
+- 데스크톱 가구 우클릭: 이름·모양·크기 편집, 회전, 복사, 삭제
 - 모바일 터치 버튼과 작업판 아래 접이식 가구 추가·편집 패널
 - 상단 왼쪽 메뉴에서 프로젝트 파일 저장·불러오기
 
@@ -53,6 +58,8 @@ streamlit run app.py
 pip install -r requirements-dev.txt
 pytest -q
 ruff check .
+npm ci
+npm test
 ```
 
 ## 다음 단계

@@ -57,13 +57,15 @@ def test_circular_geometry():
 def test_app_room_switch_retains_furniture():
     at = AppTest.from_file("../app.py", default_timeout=15).run()
     assert not at.exception
-    at.selectbox[0].select("1층 · 컴퓨터").run()
     next(t for t in at.text_input if t.label == "가구 이름").set_value("책상")
     next(b for b in at.button if b.label == "가구 추가").click().run()
     assert len(at.session_state.project.furniture) == 1
-    at.selectbox[0].select("2층 · 1-5").run()
+    at.session_state.workspace.open_room("2층 · 1-5")
+    at.session_state.selected_ids = []
+    at.run()
     assert len(at.session_state.project.furniture) == 0
-    at.selectbox[0].select("1층 · 컴퓨터").run()
+    at.session_state.workspace.open_room("1층 · 컴퓨터")
+    at.run()
     assert at.session_state.project.furniture[0].name == "책상"
     assert not at.exception
 

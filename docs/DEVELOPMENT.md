@@ -1,6 +1,6 @@
 # 개발 인수인계와 배포 절차
 
-최신 미구현 요구사항과 사용자 정정은 [HANDOFF](HANDOFF.md)를 먼저 읽는다. 아래 v0.3 요구사항은 과거 구현 기준이며, 다음 모바일 빌드에서는 탭 편집·길게 누르기 삭제 모드로 바뀐다.
+최신 상태와 사용자 정정은 [HANDOFF](HANDOFF.md)를 먼저 읽는다. 아래 v0.3 요구사항은 과거 구현 기준이며 v0.4는 탭 편집·길게 누르기 삭제 모드를 사용한다.
 
 ## 역할 분리
 
@@ -9,6 +9,7 @@
 - planner/models.py: 단일 호실과 가구. circle은 width_mm == depth_mm인 지름.
 - planner/geometry.py: 실제 mm 단위 판정. 화면 배율과 독립.
 - planner/canvas.py: SVG 표시와 이벤트. 비율 변환은 getScreenCTM().inverse() 사용.
+- planner/canvas.js / canvas.css: 작업판 UI 및 포인터 이벤트/표시. gesture.mjs는 순수 상태 전이 분류로 Node 테스트 대상.
 - planner/actions.py: 이름 변경·회전·복사·삭제 공통 명령. 복사는 그룹을 해제하고 안전한 후보 위치 탐색.
 - planner/project_io.py: v1 단일 호실 입출력. 기존 파일 호환을 유지한다.
 - planner/presets.py: 처음 여는 호실의 기본값에만 apply. 재방문 시 apply 금지.
@@ -25,6 +26,7 @@
 8. 상호 의존 파일은 가능한 한 한 커밋으로 배포. main 최신 상태를 확인하고 강제 갱신 금지.
 9. 공개 앱에서 호실 왕복, 배율, 원형, 숫자 편집, 드래그, 텍스트 편집 중 Delete 보호를 확인.
 10. 확인하지 못한 검증은 통과라고 기록하지 말고 명시한다.
+11. 프런트엔드 변경은 `npm ci && npm test`로 DOM 통합/제스처 테스트도 실행한다. Node 의존성은 개발 검증용이며 Streamlit 런타임에는 필요 없다.
 
 ## v0.3.0 구현 요구사항 — 과거 기준
 

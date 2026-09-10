@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from dataclasses import asdict, dataclass, field
 from typing import Any
+from math import isfinite
 from uuid import uuid4
 
 
@@ -15,6 +16,9 @@ class Room:
     name: str = "공간"
 
     def validate(self) -> None:
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and isfinite(v)
+                   for v in (self.width_mm, self.depth_mm)):
+            raise ValueError("공간 치수는 유한한 숫자여야 합니다.")
         if self.width_mm <= 0 or self.depth_mm <= 0:
             raise ValueError("공간의 가로와 세로는 0보다 커야 합니다.")
 
@@ -33,12 +37,15 @@ class Furniture:
     shape: str = "rectangle"
 
     def validate(self) -> None:
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and isfinite(v)
+                   for v in (self.width_mm, self.depth_mm, self.x_mm, self.y_mm, self.clearance_mm)):
+            raise ValueError("치수와 위치는 유한한 숫자여야 합니다.")
         if self.shape not in ("rectangle", "circle"):
             raise ValueError("지원하지 않는 가구 모양입니다.")
         if self.shape == "circle" and self.width_mm != self.depth_mm:
             raise ValueError("원형 가구의 가로·세로는 같은 지름이어야 합니다.")
-        if not self.name.strip():
-            raise ValueError("가구 이름을 입력해 주세요.")
+        if not isinstance(self.name, str) or not self.name.strip() or len(self.name) > 80:
+            raise ValueError("가구 이름은 1~80자로 입력해 주세요.")
         if self.width_mm <= 0 or self.depth_mm <= 0:
             raise ValueError("가구의 가로와 세로는 0보다 커야 합니다.")
         if self.rotation not in (0, 90):
