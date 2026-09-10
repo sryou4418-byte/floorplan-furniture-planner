@@ -1,8 +1,15 @@
 from __future__ import annotations
 
+# ruff: noqa: E402 -- Refresh warm-worker dependencies before binding imports.
+
 import base64
 
 import streamlit as st
+
+from planner.runtime import ensure_build
+
+VERSION = "0.4.0"
+ensure_build(VERSION)
 
 from planner.actions import apply_action, create_sample, edit_furniture, move_furniture
 import planner.canvas as canvas_module
@@ -12,15 +19,9 @@ from planner.models import Furniture, Room
 from planner.presets import PRESETS_BY_LABEL
 from planner.workspace import Workspace, download_name, export_workspace, import_workspace
 
-# A running Cloud worker can retain the previous imported component after deploy.
-if getattr(canvas_module, "CANVAS_VERSION", None) != "0.4.0":
-    import importlib
-
-    importlib.reload(canvas_module)
 planner_canvas = canvas_module.planner_canvas
 
 
-VERSION = "0.4.0"
 st.set_page_config(page_title="도면 가구 배치", page_icon="📐", layout="wide", initial_sidebar_state="collapsed")
 st.html("""<style>
 [data-testid="stMainBlockContainer"] { padding: 4.2rem 1.5rem 1rem; max-width: 1600px; }
@@ -39,6 +40,10 @@ def init_state():
         work = Workspace()
         work.open_room("1층 · 컴퓨터")
         st.session_state.workspace = work
+    if st.session_state.get("workspace_build") != VERSION:
+        # Recreate typed objects after a warm deployment without losing rooms.
+        st.session_state.workspace = import_workspace(export_workspace(st.session_state.workspace))
+        st.session_state.workspace_build = VERSION
     st.session_state.project = st.session_state.workspace.project
     st.session_state.setdefault("selected_ids", [])
     st.session_state.setdefault("room_choice", st.session_state.workspace.active)
