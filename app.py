@@ -3,18 +3,23 @@ from __future__ import annotations
 # ruff: noqa: E402 -- Refresh warm-worker dependencies before binding imports.
 
 import base64
-from collections import Counter
 
 import streamlit as st
 
 from planner.runtime import ensure_build
 
-VERSION = "0.5.0"
-BUILD_ID = "0.5.0-1"
+VERSION = "0.6.0"
+BUILD_ID = "0.6.0-1"
 ensure_build(BUILD_ID)
 
 import planner.canvas as canvas_module
-from planner.actions import apply_action, create_sample, edit_furniture, move_furniture
+from planner.actions import (
+    apply_action,
+    create_sample,
+    edit_furniture,
+    furniture_name_counts,
+    move_furniture,
+)
 from planner.geometry import analyze, occupied_ratio
 from planner.models import Furniture, Room
 from planner.presets import PRESETS_BY_LABEL
@@ -313,6 +318,7 @@ with canvas_column:
             "revision": st.session_state.canvas_revision,
             "selected_ids": st.session_state.selected_ids,
             "image_data_url": image_data_url(project),
+            "desktop_assists": True,
         },
         key="planner_canvas",
         on_move_change=update_from_canvas,
@@ -338,7 +344,7 @@ with list_column:
     with st.container(border=True):
         st.markdown("**배치 가구**")
         st.caption(f"총 {len(project.furniture)}개")
-        counts = Counter(item.name for item in project.furniture)
+        counts = furniture_name_counts(project)
         if counts:
             for item_name, count in counts.items():
                 st.write(f"{item_name}  × {count}")

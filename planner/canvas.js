@@ -6,11 +6,13 @@ export default function(component) {
   const listen=(target,event,fn,options={})=>target.addEventListener(event,fn,{...options,signal});
   const svg=shell.querySelector('svg'), viewport=shell.querySelector('.canvas-viewport');
   const menu=shell.querySelector('.furniture-menu'), roomSelect=shell.querySelector('.room-picker select');
+  const assistToggle=shell.querySelector('.assist-toggle');
   const badge=shell.querySelector('.delete-badge'), done=shell.querySelector('.delete-done');
   const message=shell.querySelector('.canvas-message'); message.textContent='';
   const items=new Map(data.furniture.map(f=>[f.id,{...f}])), groups=new Map();
   const selected=new Set(data.selected_ids||[]), gesture=new Gesture(), pointers=new Set();
-  let drag=null, timer=null, deleteId=null, deletePointer=null, busy=false, lastTouch=-Infinity;
+  let drag=null, timer=null, clickTimer=null, deleteId=null, deletePointer=null, busy=false, lastTouch=-Infinity;
+  let assistEnabled=shell._assistEnabled!==false;
   let zoom=shell._room===data.room_key ? (shell._zoom||1) : 1;
   shell._room=data.room_key;
   let baseWidth=1;
@@ -62,6 +64,12 @@ export default function(component) {
   for(const b of shell.querySelectorAll('[data-tool]')) listen(b,'click',()=>{
     const refit=b.dataset.tool==='fit'; closeAll(); zoom=refit?1:Math.min(2,Math.max(.5,zoom+(b.dataset.tool==='in'?.1:-.1))); measure(refit);
   });
+  const updateAssistToggle=()=>{
+    assistToggle.setAttribute('aria-pressed',String(assistEnabled));
+    assistToggle.textContent=`정렬 보조 ${assistEnabled?'켬':'끔'}`;
+  };
+  updateAssistToggle();
+  listen(assistToggle,'click',()=>{assistEnabled=!assistEnabled; shell._assistEnabled=assistEnabled; updateAssistToggle();});
   roomSelect.replaceChildren();
   for(const label of data.room_options||[]) {
     const option=doc.createElement('option'); option.value=label; option.textContent=label; option.selected=label===data.room_key; roomSelect.append(option);
@@ -79,11 +87,80 @@ export default function(component) {
   const node=(tag,attrs={})=>{const e=doc.createElementNS('http://www.w3.org/2000/svg',tag); for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v); return e;};
   if(data.image_data_url) svg.append(node('image',{href:data.image_data_url,width:data.room.width_mm,height:data.room.depth_mm,preserveAspectRatio:'none',opacity:.65}));
   svg.append(node('rect',{width:data.room.width_mm,height:data.room.depth_mm,class:'room-border'}));
+  const assistLayer=node('g',{class:'assist-layer'}); svg.append(assistLayer);
   const point=event=>{const p=svg.createSVGPoint(); p.x=event.clientX; p.y=event.clientY; return p.matrixTransform(svg.getScreenCTM().inverse());};
   const button=(label,fn,parent=menu)=>{const b=doc.createElement('button'); b.type='button'; b.textContent=label; listen(b,'click',fn); parent.append(b); return b;};
   const command=(action,id)=>{closeMenu(); stopDelete(); send('action',{action,id});};
+  const boxOf=(item,dx=0,dy=0)=>{
+    const [width,depth]=item.rotation===90?[item.depth_mm,item.width_mm]:[item.width_mm,item.depth_mm];
+    return {left:item.x_mm+dx,top:item.y_mm+dy,right:item.x_mm+dx+width,bottom:item.y_mm+dy+depth,width,depth};
+  };
+  const selectionBox=(ids,dx=0,dy=0)=>{
+    const boxes=ids.map(id=>boxOf(items.get(id),dx,dy));
+    return {left:Math.min(...boxes.map(b=>b.left)),top:Math.min(...boxes.map(b=>b.top)),right:Math.max(...boxes.map(b=>b.right)),bottom:Math.max(...boxes.map(b=>b.bottom))};
+  };
+  const clampDelta=(ids,dx,dy)=>{
+    const box=selectionBox(ids,dx,dy), width=box.right-box.left, depth=box.bottom-box.top;
+    if(width>data.room.width_mm) dx-=box.left;
+    else if(box.left<0) dx-=box.left; else if(box.right>data.room.width_mm) dx+=data.room.width_mm-box.right;
+    if(depth>data.room.depth_mm) dy-=box.top;
+    else if(box.top<0) dy-=box.top; else if(box.bottom>data.room.depth_mm) dy+=data.room.depth_mm-box.bottom;
+    return {dx,dy};
+  };
+  const snapDelta=(ids,dx,dy,disabled)=>{
+    if(disabled||!assistEnabled||!data.desktop_assists) return {...clampDelta(ids,dx,dy),guides:{}};
+    const moving=selectionBox(ids,dx,dy), movingSet=new Set(ids);
+    const xTargets=[0,data.room.width_mm], yTargets=[0,data.room.depth_mm];
+    for(const [id,item] of items) if(!movingSet.has(id)) {
+      const b=boxOf(item); xTargets.push(b.left,(b.left+b.right)/2,b.right); yTargets.push(b.top,(b.top+b.bottom)/2,b.bottom);
+    }
+    const xAnchors=[moving.left,(moving.left+moving.right)/2,moving.right];
+    const yAnchors=[moving.top,(moving.top+moving.bottom)/2,moving.bottom];
+    const rect=svg.getBoundingClientRect();
+    const threshold=10*data.room.width_mm/Math.max(rect.width,1);
+    let bestX={distance:Infinity,adjust:0,target:null}, bestY={distance:Infinity,adjust:0,target:null};
+    for(const anchor of xAnchors) for(const target of xTargets) {const adjust=target-anchor,distance=Math.abs(adjust); if(distance<bestX.distance) bestX={distance,adjust,target};}
+    for(const anchor of yAnchors) for(const target of yTargets) {const adjust=target-anchor,distance=Math.abs(adjust); if(distance<bestY.distance) bestY={distance,adjust,target};}
+    const guides={};
+    if(bestX.distance<=threshold) {dx+=bestX.adjust; guides.x=bestX.target;}
+    if(bestY.distance<=threshold) {dy+=bestY.adjust; guides.y=bestY.target;}
+    return {...clampDelta(ids,dx,dy),guides};
+  };
+  const line=(x1,y1,x2,y2,label,className='measure-line')=>{
+    const g=node('g',{class:className}); g.append(node('line',{x1,y1,x2,y2}));
+    if(label!==undefined) {const t=node('text',{x:(x1+x2)/2,y:(y1+y2)/2,class:'measure-label'}); t.textContent=label; g.append(t);}
+    assistLayer.append(g);
+  };
+  const renderAssists=(ids,dx=0,dy=0,guides={})=>{
+    assistLayer.replaceChildren();
+    if(!ids.length||!data.desktop_assists) return;
+    if(guides.x!==undefined) line(guides.x,0,guides.x,data.room.depth_mm,undefined,'alignment-guide');
+    if(guides.y!==undefined) line(0,guides.y,data.room.width_mm,guides.y,undefined,'alignment-guide');
+    const box=selectionBox(ids,dx,dy), cx=(box.left+box.right)/2, cy=(box.top+box.bottom)/2;
+    const horizontal=[{gap:box.left,x1:0,x2:box.left,y:cy},{gap:data.room.width_mm-box.right,x1:box.right,x2:data.room.width_mm,y:cy}];
+    const vertical=[{gap:box.top,y1:0,y2:box.top,x:cx},{gap:data.room.depth_mm-box.bottom,y1:box.bottom,y2:data.room.depth_mm,x:cx}];
+    const movingSet=new Set(ids);
+    for(const [id,item] of items) if(!movingSet.has(id)) {
+      const other=boxOf(item);
+      const yOverlap=Math.min(box.bottom,other.bottom)-Math.max(box.top,other.top);
+      const xOverlap=Math.min(box.right,other.right)-Math.max(box.left,other.left);
+      if(yOverlap>0&&other.right<=box.left) horizontal.push({gap:box.left-other.right,x1:other.right,x2:box.left,y:(Math.max(box.top,other.top)+Math.min(box.bottom,other.bottom))/2});
+      if(yOverlap>0&&other.left>=box.right) horizontal.push({gap:other.left-box.right,x1:box.right,x2:other.left,y:(Math.max(box.top,other.top)+Math.min(box.bottom,other.bottom))/2});
+      if(xOverlap>0&&other.bottom<=box.top) vertical.push({gap:box.top-other.bottom,y1:other.bottom,y2:box.top,x:(Math.max(box.left,other.left)+Math.min(box.right,other.right))/2});
+      if(xOverlap>0&&other.top>=box.bottom) vertical.push({gap:other.top-box.bottom,y1:box.bottom,y2:other.top,x:(Math.max(box.left,other.left)+Math.min(box.right,other.right))/2});
+    }
+    const h=horizontal.filter(v=>v.gap>=0).sort((a,b)=>a.gap-b.gap)[0];
+    const v=vertical.filter(value=>value.gap>=0).sort((a,b)=>a.gap-b.gap)[0];
+    if(h) line(h.x1,h.y,h.x2,h.y,`${Math.round(h.gap)} mm`);
+    if(v) line(v.x,v.y1,v.x,v.y2,`${Math.round(v.gap)} mm`);
+  };
   const editor=item=>{
-    closeAll(); mark([item.id]); menu.classList.remove('floating'); menu.style.left=''; menu.style.top=''; menu.replaceChildren(); menu.hidden=false;
+    closeAll(); mark([item.id]); renderAssists([item.id]); menu.classList.remove('floating'); menu.classList.add('quick-editor'); menu.replaceChildren(); menu.hidden=false;
+    const target=groups.get(item.id).getBoundingClientRect(), shellRect=shell.getBoundingClientRect();
+    const width=Math.min(310,Math.max(240,shellRect.width-16));
+    const right=target.right-shellRect.left+10, left=target.left-shellRect.left-width-10;
+    menu.style.width=`${width}px`; menu.style.left=`${right+width<=shellRect.width-4?right:Math.max(4,left)}px`;
+    menu.style.top=`${Math.max(4,Math.min(target.top-shellRect.top,shellRect.height-330))}px`;
     const form=doc.createElement('form'); menu.append(form);
     const field=(label,value,type='text')=>{
       const wrap=doc.createElement('label'); wrap.textContent=label;
@@ -118,12 +195,20 @@ export default function(component) {
     const hint=doc.createElement('p'); hint.className='canvas-message'; hint.textContent='변경 후 적용 · 가구를 끌면 미적용 입력은 취소돼요.'; menu.append(hint);
   };
   const context=(item,event)=>{
-    closeAll(); mark([item.id]); menu.replaceChildren(); menu.hidden=false; menu.classList.add('floating');
+    closeAll(); mark([item.id]); renderAssists([item.id]); menu.replaceChildren(); menu.hidden=false; menu.classList.remove('quick-editor'); menu.classList.add('floating');
     const r=shell.getBoundingClientRect(); menu.style.left=`${Math.max(4,Math.min(event.clientX-r.left,r.width-258))}px`;
     menu.style.top=`${Math.max(0,Math.min(event.clientY-r.top,r.height-260))}px`;
-    button('이름·모양·크기 편집',()=>editor(item));
+    button('가구 편집',()=>editor(item));
     button('90° 회전',()=>command('rotate',item.id)).disabled=item.shape==='circle';
     button('복사',()=>command('copy',item.id)); button('삭제',()=>command('delete',item.id)); button('닫기',closeMenu);
+  };
+  const blankContext=event=>{
+    const p=point(event), r=shell.getBoundingClientRect(); closeAll(); menu.replaceChildren();
+    menu.hidden=false; menu.classList.remove('quick-editor'); menu.classList.add('floating');
+    menu.style.width='220px'; menu.style.left=`${Math.max(4,Math.min(event.clientX-r.left,r.width-228))}px`;
+    menu.style.top=`${Math.max(0,Math.min(event.clientY-r.top,r.height-110))}px`;
+    button('샘플 가구 추가',()=>{closeMenu(); send('action',{action:'create',x_mm:p.x,y_mm:p.y});});
+    button('닫기',closeMenu);
   };
   const startDelete=id=>{
     cancel(); closeMenu(); stopDelete(); deleteId=id; mark([id]); groups.get(id).classList.add('wiggle'); badge.hidden=false; done.hidden=false; placeBadge();
@@ -155,7 +240,15 @@ export default function(component) {
     const sub=node('tspan',{x:w/2,dy:'1.5em','font-weight':400}); sub.textContent=size;
     label.append(title,sub); g.append(s,label); svg.append(g); groups.set(item.id,g);
     listen(s,'contextmenu',event=>{event.preventDefault(); if(event.pointerType==='touch'||event.pointerType==='pen'||win.performance.now()-lastTouch<1200) return; context(items.get(item.id),event);});
+    listen(s,'dblclick',event=>{
+      if(event.pointerType==='touch'||event.pointerType==='pen'||win.performance.now()-lastTouch<1200) return;
+      event.preventDefault(); event.stopPropagation(); win.clearTimeout(clickTimer); editor(items.get(item.id));
+    });
   }
+  listen(svg,'contextmenu',event=>{
+    if(event.target.closest?.('.furniture')||event.pointerType==='touch'||event.pointerType==='pen'||win.performance.now()-lastTouch<1200) return;
+    event.preventDefault(); blankContext(event);
+  });
   listen(svg,'pointerdown',event=>{
     pointers.add(event.pointerId);
     if(pointers.size>1) {cancel(); return;}
@@ -176,24 +269,33 @@ export default function(component) {
     win.clearTimeout(timer);
     if(!drag) return;
     closeMenu(); stopDelete(); const p=point(event);
-    for(const id of drag.ids) {const f=items.get(id); groups.get(id).setAttribute('transform',`translate(${f.x_mm+p.x-drag.start.x},${f.y_mm+p.y-drag.start.y})`);}
+    const snapped=snapDelta(drag.ids,p.x-drag.start.x,p.y-drag.start.y,event.altKey||drag.touch);
+    drag.preview=snapped;
+    for(const id of drag.ids) {const f=items.get(id); groups.get(id).setAttribute('transform',`translate(${f.x_mm+snapped.dx},${f.y_mm+snapped.dy})`);}
+    renderAssists(drag.ids,snapped.dx,snapped.dy,snapped.guides);
   });
   listen(svg,'pointerup',event=>{
     pointers.delete(event.pointerId); win.clearTimeout(timer);
     const current=drag, outcome=gesture.end(event.pointerId,event.clientX,event.clientY,event.timeStamp); drag=null;
     if(outcome==='drag'&&current) {
-      closeMenu(); const p=point(event), moves=current.ids.map(id=>({id,x_mm:items.get(id).x_mm+p.x-current.start.x,y_mm:items.get(id).y_mm+p.y-current.start.y}));
+      closeMenu(); const p=point(event);
+      const final=current.preview||snapDelta(current.ids,p.x-current.start.x,p.y-current.start.y,event.altKey||current.touch);
+      const moves=current.ids.map(id=>({id,x_mm:items.get(id).x_mm+final.dx,y_mm:items.get(id).y_mm+final.dy}));
       moves.forEach(m=>Object.assign(items.get(m.id),m)); mark(current.ids); send('move',{moves});
     } else if(outcome==='tap'&&current) {
       if(current.touch) editor(items.get(current.target));
-      else {const ids=event.shiftKey?new Set(selected):new Set(); event.shiftKey&&ids.has(current.target)?ids.delete(current.target):ids.add(current.target); mark([...ids]); send('select',{ids:[...ids]});}
+      else {
+        const ids=event.shiftKey?new Set(selected):new Set(); event.shiftKey&&ids.has(current.target)?ids.delete(current.target):ids.add(current.target);
+        mark([...ids]); renderAssists([...ids]); win.clearTimeout(clickTimer);
+        clickTimer=win.setTimeout(()=>send('select',{ids:[...ids]}),240);
+      }
     } else if(outcome==='create') {const p=point(event); send('action',{action:'create',x_mm:p.x,y_mm:p.y});}
   });
   listen(svg,'pointercancel',event=>{pointers.delete(event.pointerId); cancel();});
   listen(svg,'lostpointercapture',()=>{if(drag) cancel();});
   listen(doc,'pointerup',event=>pointers.delete(event.pointerId));
   listen(win,'blur',()=>{pointers.clear(); closeAll();});
-  measure();
-  shell._cleanup=()=>{closeAll(); controller.abort(); observer.disconnect();};
+  renderAssists([...selected]); measure();
+  shell._cleanup=()=>{win.clearTimeout(clickTimer); closeAll(); controller.abort(); observer.disconnect();};
   return shell._cleanup;
 }

@@ -92,3 +92,36 @@ test('furniture-only rerender preserves fitted plan size',()=>{
   assert.equal(h.svg.style.width,width); assert.equal(h.svg.style.height,height);
   cleanup(); h.dom.window.close();
 });
+test('desktop blank context menu creates one sample at the saved plan point',()=>{
+  const h=setup(), blank=h.shell.querySelector('.room-border');
+  const event=new h.w.Event('contextmenu',{bubbles:true,cancelable:true});
+  Object.assign(event,{clientX:23,clientY:31,pointerType:'mouse'}); blank.dispatchEvent(event);
+  assert.equal(h.menu.hidden,false);
+  assert.equal(h.menu.querySelector('button').textContent,'샘플 가구 추가');
+  h.menu.querySelector('button').click();
+  assert.equal(h.events.length,1); assert.equal(h.events[0].action,'create');
+  assert.equal(h.events[0].x_mm,230); assert.equal(h.events[0].y_mm,310);
+  h.cleanup(); h.dom.window.close();
+});
+test('desktop double click opens the beside-furniture quick editor without select rerender',()=>{
+  const h=setup();
+  h.pointer(h.shape,'pointerdown',10,10,1,'mouse'); h.pointer(h.svg,'pointerup',10,10,1,'mouse');
+  h.pointer(h.shape,'pointerdown',10,10,1,'mouse'); h.pointer(h.svg,'pointerup',10,10,1,'mouse');
+  const event=new h.w.Event('dblclick',{bubbles:true,cancelable:true}); Object.assign(event,{pointerType:'mouse'}); h.shape.dispatchEvent(event);
+  assert.equal(h.menu.hidden,false); assert.equal(h.menu.classList.contains('quick-editor'),true);
+  assert.equal(h.events.length,0);
+  h.cleanup(); h.dom.window.close();
+});
+test('dropping beyond the room clamps the whole furniture back inside',()=>{
+  const h=setup(); h.pointer(h.shape,'pointerdown',10,10); h.pointer(h.svg,'pointermove',700,10); h.pointer(h.svg,'pointerup',700,10);
+  assert.equal(h.events.length,1); assert.equal(h.events[0].type,'move');
+  assert.equal(h.events[0].moves[0].x_mm,4800); assert.equal(h.events[0].moves[0].y_mm,200);
+  h.cleanup(); h.dom.window.close();
+});
+test('selected desktop furniture shows integer millimeter gap helpers',()=>{
+  const h=setup(), data={...h.data,desktop_assists:true,selected_ids:['a']};
+  const cleanup=h.render({data,parentElement:h.doc,setTriggerValue:()=>{}});
+  const labels=[...h.shell.querySelectorAll('.measure-label')].map(node=>node.textContent);
+  assert.ok(labels.includes('100 mm')); assert.ok(labels.includes('200 mm'));
+  cleanup(); h.dom.window.close();
+});

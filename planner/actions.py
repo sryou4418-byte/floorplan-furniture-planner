@@ -1,10 +1,56 @@
 """Furniture commands shared by pointer, touch and form controls."""
 from dataclasses import replace
-from uuid import uuid4
 from math import isfinite
+import re
+from uuid import uuid4
 
 from .geometry import bounds, effective_size, is_inside, overlaps
 from .models import Furniture, Project
+
+
+_COPY_SUFFIX = re.compile(r"(?:\s+복사)+\s*$")
+_NUMBER_SUFFIX = re.compile(r"\s*([0-9]+)\s*$")
+
+
+def base_furniture_name(name: str) -> str:
+    """Return the display-count base while preserving the stored item name."""
+    cleaned = _COPY_SUFFIX.sub("", name.strip()).strip()
+    base = _NUMBER_SUFFIX.sub("", cleaned).strip()
+    return base or cleaned
+
+
+def furniture_name_counts(project: Project) -> dict[str, int]:
+    counts: dict[str, int] = {}
+    for item in project.furniture:
+        base = base_furniture_name(item.name)
+        counts[base] = counts.get(base, 0) + 1
+    return counts
+
+
+def _next_copy_name(project: Project, item: Furniture) -> str:
+    base = base_furniture_name(item.name)
+    used = set()
+    for other in project.furniture:
+        cleaned = _COPY_SUFFIX.sub("", other.name.strip()).strip()
+        if base_furniture_name(cleaned) != base:
+            continue
+        match = _NUMBER_SUFFIX.search(cleaned)
+        used.add(int(match.group(1)) if match else 1)
+    number = next(value for value in range(2, len(used) + 3) if value not in used)
+    suffix = f" {number}"
+    return f"{base[:80 - len(suffix)]}{suffix}"
+
+
+def _fit_axis(start: float, end: float, room_size: float) -> float:
+    """Translate a selection into view without changing its size or spacing."""
+    size = end - start
+    if size > room_size:
+        return -start
+    if start < 0:
+        return -start
+    if end > room_size:
+        return room_size - end
+    return 0.0
 
 
 def create_sample(project: Project, x: float, y: float) -> list[str]:
@@ -33,6 +79,9 @@ def edit_furniture(project: Project, item_id: str, changes: dict) -> list[str]:
         candidate.depth_mm = candidate.width_mm
         candidate.rotation = 0
     candidate.validate()  # Validate before mutating any live state.
+    box = bounds(candidate)
+    candidate.x_mm += _fit_axis(box.left, box.right, project.room.width_mm)
+    candidate.y_mm += _fit_axis(box.top, box.bottom, project.room.depth_mm)
     for key in allowed | {"rotation"}:
         setattr(item, key, getattr(candidate, key))
     return [item.id]
@@ -48,6 +97,21 @@ def move_furniture(project: Project, moves: list[dict]) -> list[str]:
         candidate = replace(item, x_mm=move.get("x_mm"), y_mm=move.get("y_mm"))
         candidate.validate()
         updates.append((item, candidate))
+    if updates:
+        boxes = [bounds(candidate) for _, candidate in updates]
+        dx = _fit_axis(
+            min(box.left for box in boxes),
+            max(box.right for box in boxes),
+            project.room.width_mm,
+        )
+        dy = _fit_axis(
+            min(box.top for box in boxes),
+            max(box.bottom for box in boxes),
+            project.room.depth_mm,
+        )
+        for _, candidate in updates:
+            candidate.x_mm += dx
+            candidate.y_mm += dy
     for item, candidate in updates:
         item.x_mm, item.y_mm = round(candidate.x_mm, 1), round(candidate.y_mm, 1)
     return [item.id for item, _ in updates]
@@ -65,11 +129,14 @@ def apply_action(project: Project, action: str, item_id: str, name: str = "") ->
     elif action == "rotate":
         if item.shape != "circle":
             item.rotation = 90 if item.rotation == 0 else 0
+            box = bounds(item)
+            item.x_mm += _fit_axis(box.left, box.right, project.room.width_mm)
+            item.y_mm += _fit_axis(box.top, box.bottom, project.room.depth_mm)
     elif action == "delete":
         project.furniture = [f for f in project.furniture if f.id != item_id]
         return []
     elif action == "copy":
-        copy = replace(item, id=uuid4().hex, name=f"{item.name[:74]} 복사", group="")
+        copy = replace(item, id=uuid4().hex, name=_next_copy_name(project, item), group="")
         width, depth = effective_size(copy)
         xs = {0.0, item.x_mm, project.room.width_mm - width}
         ys = {0.0, item.y_mm, project.room.depth_mm - depth}

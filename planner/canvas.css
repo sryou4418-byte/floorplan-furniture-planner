@@ -9,6 +9,7 @@
 .canvas-tools { display:flex; gap:6px; align-items:center; margin:0 0 8px; flex-wrap:wrap; }
 .zoom-value { min-width:44px; text-align:center; font-size:13px; }
 .canvas-help { font-size:12px; color:#62666d; margin-left:auto; }
+.assist-toggle[aria-pressed="true"] { color:#075985; border-color:#7dd3fc; background:#f0f9ff; }
 .canvas-viewport { width:100%; overflow:auto; border-radius:10px; background:#f5f6f8; }
 #planner-svg { display:block; margin:0 auto; background:#fafafa; touch-action:pan-x pan-y pinch-zoom; -webkit-touch-callout:none; outline:none !important; }
 #planner-svg:focus, #planner-svg:focus-visible, .canvas-viewport:focus { outline:none !important; box-shadow:none !important; }
@@ -17,6 +18,10 @@
 .furniture:active { cursor:grabbing; }
 .furniture.selected { stroke:#007aff !important; stroke-width:2; }
 .furniture-label { pointer-events:none; text-anchor:middle; dominant-baseline:central; font-weight:700; fill:#1d1d1f; }
+.assist-layer { pointer-events:none; }
+.measure-line line { stroke:#0e7490; stroke-width:1.5; vector-effect:non-scaling-stroke; stroke-dasharray:5 4; }
+.measure-label { fill:#075985; font-size:150px; font-weight:700; text-anchor:middle; dominant-baseline:auto; paint-order:stroke; stroke:#fff; stroke-width:28px; stroke-linejoin:round; }
+.alignment-guide line { stroke:#007aff; stroke-width:1.5; vector-effect:non-scaling-stroke; stroke-dasharray:8 5; }
 .wiggle > * { transform-box:fill-box; transform-origin:center; animation:wiggle .16s ease-in-out infinite alternate; }
 @keyframes wiggle { from {rotate:-2deg;} to {rotate:2deg;} }
 @media(prefers-reduced-motion:reduce) { .wiggle > * { animation:none; } }
@@ -24,6 +29,7 @@
 .delete-done { display:block; margin:8px 0 0 auto; }
 .furniture-menu { margin-top:10px; padding:12px; box-sizing:border-box; background:#fff; color:#202124; border:1px solid #d5d7db; border-radius:12px; }
 .furniture-menu.floating { position:absolute; z-index:20; width:min(250px,calc(100% - 16px)); margin:0; box-shadow:0 8px 28px #0003; }
+.furniture-menu.quick-editor { position:absolute; z-index:21; margin:0; box-shadow:0 10px 32px #0004; }
 .furniture-menu.floating button { display:block; width:100%; text-align:left; margin:3px 0; }
 .furniture-menu form { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:10px; }
 .furniture-menu label { font-size:13px; display:flex; flex-direction:column; gap:4px; min-width:0; }
@@ -38,5 +44,6 @@
   .canvas-shell h1 { font-size:18px; line-height:1.6; }
   .canvas-help { flex-basis:100%; margin:0; }
   .canvas-tools { gap:4px; }
-  .furniture-menu:not(.floating) { position:fixed; left:8px; right:8px; bottom:calc(8px + env(safe-area-inset-bottom,0px)); z-index:1000; max-height:min(58dvh,520px); overflow:auto; margin:0; box-shadow:0 10px 35px #0005; }
+  .assist-toggle, .assist-layer { display:none; }
+  .furniture-menu.quick-editor { position:fixed; left:8px !important; right:8px; top:auto !important; bottom:calc(8px + env(safe-area-inset-bottom,0px)); width:auto !important; z-index:1000; max-height:min(58dvh,520px); overflow:auto; margin:0; box-shadow:0 10px 35px #0005; }
 }
