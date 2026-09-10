@@ -16,7 +16,7 @@ export default function(component) {
   let maxHeight=500;
   const send=(type,payload)=>{
     if(busy) return;
-    busy=true; message.textContent='적용 중…';
+    busy=true;
     setTriggerValue(type,{...payload,room_key:data.room_key,nonce:win.crypto.randomUUID()});
   };
   const closeMenu=()=>{menu.hidden=true; const active=menu.getRootNode().activeElement; if(active&&menu.contains(active)) active.blur();};

@@ -9,7 +9,8 @@ import streamlit as st
 from planner.runtime import ensure_build
 
 VERSION = "0.4.0"
-ensure_build(VERSION)
+BUILD_ID = "0.4.0-2"
+ensure_build(BUILD_ID)
 
 from planner.actions import apply_action, create_sample, edit_furniture, move_furniture
 import planner.canvas as canvas_module
@@ -40,10 +41,10 @@ def init_state():
         work = Workspace()
         work.open_room("1층 · 컴퓨터")
         st.session_state.workspace = work
-    if st.session_state.get("workspace_build") != VERSION:
+    if st.session_state.get("workspace_build") != BUILD_ID:
         # Recreate typed objects after a warm deployment without losing rooms.
         st.session_state.workspace = import_workspace(export_workspace(st.session_state.workspace))
-        st.session_state.workspace_build = VERSION
+        st.session_state.workspace_build = BUILD_ID
     st.session_state.project = st.session_state.workspace.project
     st.session_state.setdefault("selected_ids", [])
     st.session_state.setdefault("room_choice", st.session_state.workspace.active)
@@ -140,6 +141,7 @@ def status_payload(project):
 
 
 init_state()
+st.session_state.canvas_revision = st.session_state.get("canvas_revision", 0) + 1
 project = st.session_state.project
 
 with st.sidebar:
@@ -235,6 +237,7 @@ with canvas_area.container():
     planner_canvas(data={"room": {"width_mm": project.room.width_mm, "depth_mm": project.room.depth_mm},
                          "room_key": st.session_state.workspace.active, "furniture": status_payload(project),
                          "room_options": options,
+                         "revision": st.session_state.canvas_revision,
                          "selected_ids": st.session_state.selected_ids, "image_data_url": image_data_url(project)},
                    key="planner_canvas", on_move_change=update_from_canvas,
                    on_select_change=select_from_canvas, on_delete_change=delete_from_canvas,
