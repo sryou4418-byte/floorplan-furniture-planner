@@ -302,7 +302,7 @@ if st.session_state.workspace.active == "직접 설정":
 if "notice" in st.session_state:
     st.warning(st.session_state.pop("notice"))
 
-canvas_column, list_column = st.columns([6, 1.25], gap="medium")
+canvas_column, list_column = st.columns([6, 1.35], gap="medium")
 with canvas_column:
     planner_canvas(
         data={
@@ -336,7 +336,7 @@ with canvas_column:
 
 with list_column:
     with st.container(border=True):
-        st.subheader("배치 가구")
+        st.markdown("**배치 가구**")
         st.caption(f"총 {len(project.furniture)}개")
         counts = Counter(item.name for item in project.furniture)
         if counts:
