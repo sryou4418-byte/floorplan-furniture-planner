@@ -20,6 +20,12 @@ test('furniture tap vs drag vs hold are exclusive',()=>{
   g.start(1,10,10,0,true,'a'); assert.equal(g.hold(1,549),false);
   assert.equal(g.hold(1,550),true); assert.equal(g.end(1,10,10,600),null);
 });
+test('small touch jitter still permits long hold while mouse keeps precise drag threshold',()=>{
+  const touch=new Gesture(); touch.start(1,10,10,0,true,'a');
+  assert.equal(touch.move(1,20,10),false); assert.equal(touch.hold(1,550),true);
+  const mouse=new Gesture(); mouse.start(1,10,10,0,false,'a');
+  assert.equal(mouse.move(1,17,10),true);
+});
 test('wrong pointer and cancelled multi-touch cannot finish gesture',()=>{
   const g=new Gesture(); g.start(1,0,0,0,true,'a');
   assert.equal(g.end(2,0,0,10),null); g.reset();

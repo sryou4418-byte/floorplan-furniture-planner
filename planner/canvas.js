@@ -5,15 +5,15 @@ export default function(component) {
   const controller=new AbortController(), signal=controller.signal;
   const listen=(target,event,fn,options={})=>target.addEventListener(event,fn,{...options,signal});
   const svg=shell.querySelector('svg'), viewport=shell.querySelector('.canvas-viewport');
-  const menu=shell.querySelector('.furniture-menu'), picker=shell.querySelector('.room-picker');
+  const menu=shell.querySelector('.furniture-menu'), roomSelect=shell.querySelector('.room-picker select');
   const badge=shell.querySelector('.delete-badge'), done=shell.querySelector('.delete-done');
   const message=shell.querySelector('.canvas-message'); message.textContent='';
   const items=new Map(data.furniture.map(f=>[f.id,{...f}])), groups=new Map();
   const selected=new Set(data.selected_ids||[]), gesture=new Gesture(), pointers=new Set();
-  let drag=null, timer=null, deleteId=null, busy=false, lastTouch=-Infinity;
+  let drag=null, timer=null, deleteId=null, deletePointer=null, busy=false, lastTouch=-Infinity;
   let zoom=shell._room===data.room_key ? (shell._zoom||1) : 1;
   shell._room=data.room_key;
-  let maxHeight=500;
+  let baseWidth=1;
   const send=(type,payload)=>{
     if(busy) return;
     busy=true;
@@ -24,13 +24,13 @@ export default function(component) {
     selected.clear(); ids.forEach(id=>selected.add(id));
     for(const [id,g] of groups) g.querySelector('.furniture').classList.toggle('selected',selected.has(id));
   };
-  const stopDelete=()=>{deleteId=null; badge.hidden=true; done.hidden=true; groups.forEach(g=>g.classList.remove('wiggle'));};
+  const stopDelete=()=>{deleteId=null; deletePointer=null; badge.hidden=true; done.hidden=true; groups.forEach(g=>g.classList.remove('wiggle'));};
   const cancel=()=>{
     win.clearTimeout(timer); gesture.reset();
     if(drag) for(const id of drag.ids) {const f=items.get(id); groups.get(id)?.setAttribute('transform',`translate(${f.x_mm},${f.y_mm})`);}
     drag=null;
   };
-  const closeAll=()=>{picker.open=false; closeMenu(); stopDelete(); cancel();};
+  const closeAll=()=>{closeMenu(); stopDelete(); cancel();};
   closeAll();
   const placeBadge=()=>{
     if(!deleteId) return;
@@ -41,40 +41,40 @@ export default function(component) {
   const fit=()=>{
     if(drag) return;
     const ratio=data.room.width_mm/data.room.depth_mm;
-    const width=Math.min(Math.max(1,viewport.clientWidth-4),maxHeight*ratio);
-    svg.style.width=`${width*zoom}px`; svg.style.height=`${width*zoom/ratio}px`;
-    viewport.style.maxHeight=`${maxHeight+2}px`;
+    svg.style.width=`${baseWidth*zoom}px`; svg.style.height=`${baseWidth*zoom/ratio}px`;
+    viewport.style.maxHeight=`${baseWidth/ratio+2}px`;
     shell.querySelector('.zoom-value').textContent=`${Math.round(zoom*100)}%`; shell._zoom=zoom; placeBadge();
   };
-  const measure=()=>{
+  const measure=(force=false)=>{
     if(!menu.hidden) return;
     const h=win.visualViewport?.height||win.innerHeight;
-    maxHeight=Math.max(200,h-Math.max(70,viewport.getBoundingClientRect().top)-95); fit();
+    const containerWidth=Math.max(1,viewport.clientWidth-4), previous=shell._fitBasis;
+    if(force||!previous||previous.room!==data.room_key||Math.abs(previous.containerWidth-containerWidth)>2) {
+      const ratio=data.room.width_mm/data.room.depth_mm;
+      baseWidth=Math.min(containerWidth,Math.max(220,h*.7)*ratio);
+      shell._fitBasis={room:data.room_key,containerWidth,screenHeight:h,baseWidth};
+    } else baseWidth=previous.baseWidth;
+    fit();
   };
-  const observer=new ResizeObserver(fit); observer.observe(viewport);
-  listen(win,'resize',measure); if(win.visualViewport) listen(win.visualViewport,'resize',measure);
+  const observer=new ResizeObserver(()=>measure()); observer.observe(viewport);
+  listen(win,'resize',()=>measure()); if(win.visualViewport) listen(win.visualViewport,'resize',()=>measure());
   listen(viewport,'scroll',placeBadge,{passive:true});
   for(const b of shell.querySelectorAll('[data-tool]')) listen(b,'click',()=>{
-    closeAll(); zoom=b.dataset.tool==='fit'?1:Math.min(2,Math.max(.5,zoom+(b.dataset.tool==='in'?.1:-.1))); measure();
+    const refit=b.dataset.tool==='fit'; closeAll(); zoom=refit?1:Math.min(2,Math.max(.5,zoom+(b.dataset.tool==='in'?.1:-.1))); measure(refit);
   });
-  const summary=picker.querySelector('summary'); summary.textContent=data.room_key;
-  const options=picker.querySelector('.room-options'); options.replaceChildren();
+  roomSelect.replaceChildren();
   for(const label of data.room_options||[]) {
-    const b=doc.createElement('button'); b.type='button'; b.textContent=label; b.setAttribute('aria-current',String(label===data.room_key));
-    listen(b,'click',()=>{closeAll(); summary.focus({preventScroll:true}); if(label!==data.room_key) send('room',{label});}); options.append(b);
+    const option=doc.createElement('option'); option.value=label; option.textContent=label; option.selected=label===data.room_key; roomSelect.append(option);
   }
-  listen(summary,'click',()=>{closeMenu(); stopDelete(); cancel();});
+  listen(roomSelect,'pointerdown',()=>{closeMenu(); stopDelete(); cancel();});
+  listen(roomSelect,'change',()=>{const label=roomSelect.value; closeAll(); if(label!==data.room_key) send('room',{label});});
   listen(doc,'pointerdown',event=>{
     const path=event.composedPath();
-    if(!path.includes(picker)) picker.open=false;
     if(!path.includes(shell)) closeAll();
     else if(!path.includes(menu)&&!path.includes(svg)&&!path.includes(badge)&&!path.includes(done)) {closeMenu(); stopDelete();}
   },{capture:true});
   listen(doc,'click',event=>{if(!event.composedPath().includes(shell)) closeAll();});
   listen(doc,'focusin',event=>{if(!event.composedPath().includes(shell)) closeAll();});
-  const sidebar=doc.querySelector('[data-testid="stSidebar"]');
-  const sideObserver=new MutationObserver(()=>{if(sidebar?.getAttribute('aria-expanded')==='true') closeAll();});
-  if(sidebar) sideObserver.observe(sidebar,{attributes:true,attributeFilter:['aria-expanded']});
   svg.replaceChildren(); svg.setAttribute('viewBox',`0 0 ${data.room.width_mm} ${data.room.depth_mm}`);
   const node=(tag,attrs={})=>{const e=doc.createElementNS('http://www.w3.org/2000/svg',tag); for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v); return e;};
   if(data.image_data_url) svg.append(node('image',{href:data.image_data_url,width:data.room.width_mm,height:data.room.depth_mm,preserveAspectRatio:'none',opacity:.65}));
@@ -88,7 +88,7 @@ export default function(component) {
     const field=(label,value,type='text')=>{
       const wrap=doc.createElement('label'); wrap.textContent=label;
       const input=doc.createElement('input'); input.type=type; input.value=value; input.setAttribute('aria-label',label);
-      if(type==='number') {input.min='1'; input.step='any'; input.inputMode='decimal';} else input.maxLength=80;
+      if(type==='number') {input.min='1'; input.step='1'; input.inputMode='numeric';} else input.maxLength=80;
       input.required=true; wrap.append(input); form.append(wrap); return input;
     };
     const name=field('가구 이름',item.name); name.parentElement.className='menu-wide';
@@ -96,8 +96,8 @@ export default function(component) {
     const shape=doc.createElement('select'); shape.setAttribute('aria-label','모양');
     for(const [value,label] of [['rectangle','사각형'],['circle','원형']]) {const o=doc.createElement('option'); o.value=value; o.textContent=label; shape.append(o);}
     shape.value=item.shape; wrap.append(shape); form.append(wrap);
-    const w=field(item.shape==='circle'?'지름 (mm)':'가로 (mm)',item.width_mm,'number');
-    const d=field('세로 (mm)',item.depth_mm,'number');
+    const w=field(item.shape==='circle'?'지름 (mm)':'가로 (mm)',Math.round(item.width_mm),'number');
+    const d=field('세로 (mm)',Math.round(item.depth_mm),'number');
     const updateShape=()=>{
       w.parentElement.firstChild.textContent=shape.value==='circle'?'지름 (mm)':'가로 (mm)';
       w.setAttribute('aria-label',shape.value==='circle'?'지름 (mm)':'가로 (mm)');
@@ -128,13 +128,19 @@ export default function(component) {
   const startDelete=id=>{
     cancel(); closeMenu(); stopDelete(); deleteId=id; mark([id]); groups.get(id).classList.add('wiggle'); badge.hidden=false; done.hidden=false; placeBadge();
   };
-  listen(badge,'pointerdown',e=>e.stopPropagation());
-  listen(badge,'click',event=>{event.stopPropagation(); const id=deleteId; if(id) command('delete',id);});
+  listen(badge,'pointerdown',event=>{event.preventDefault(); event.stopPropagation(); deletePointer=event.pointerId;});
+  listen(badge,'pointerup',event=>{
+    event.preventDefault(); event.stopPropagation();
+    if(deletePointer!==event.pointerId) return;
+    const id=deleteId; deletePointer=null; if(id) command('delete',id);
+  });
+  listen(badge,'pointercancel',()=>{deletePointer=null;});
+  listen(badge,'click',event=>{event.preventDefault(); event.stopPropagation(); if(event.detail===0&&deleteId) command('delete',deleteId);});
   listen(done,'click',stopDelete);
   listen(doc,'keydown',event=>{
     if(event.key==='Escape') {closeAll(); return;}
     if(event.composedPath().some(e=>e.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(e.tagName))) return;
-    if(event.ctrlKey||event.altKey||event.metaKey||event.repeat||!menu.hidden||picker.open) return;
+    if(event.ctrlKey||event.altKey||event.metaKey||event.repeat||!menu.hidden) return;
     if(['Delete','Backspace'].includes(event.key)&&selected.size) {event.preventDefault(); send('delete',{ids:[...selected]});}
   });
   for(const item of items.values()) {
@@ -188,6 +194,6 @@ export default function(component) {
   listen(doc,'pointerup',event=>pointers.delete(event.pointerId));
   listen(win,'blur',()=>{pointers.clear(); closeAll();});
   measure();
-  shell._cleanup=()=>{closeAll(); controller.abort(); observer.disconnect(); sideObserver.disconnect();};
+  shell._cleanup=()=>{closeAll(); controller.abort(); observer.disconnect();};
   return shell._cleanup;
 }

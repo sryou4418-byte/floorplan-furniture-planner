@@ -2,12 +2,12 @@ from pathlib import Path
 
 import streamlit as st
 
-CANVAS_VERSION = "0.4.0-2"
+CANVAS_VERSION = "0.5.0-1"
 ROOT = Path(__file__).parent
 HTML = """
 <div class="canvas-shell">
   <h1>도면 가구 배치</h1>
-  <details class="room-picker"><summary aria-label="호실 선택"></summary><div class="room-options" role="group" aria-label="호실 목록"></div></details>
+  <label class="room-picker"><span class="visually-hidden">호실 선택</span><select aria-label="호실 선택"></select></label>
   <div class="canvas-tools">
     <button type="button" data-tool="out" aria-label="도면 축소">−</button>
     <output class="zoom-value" aria-live="polite">100%</output>
@@ -24,4 +24,4 @@ HTML = """
 """
 CSS = (ROOT / "canvas.css").read_text(encoding="utf-8")
 JS = (ROOT / "gesture.mjs").read_text(encoding="utf-8").replace("export class", "class") + "\n" + (ROOT / "canvas.js").read_text(encoding="utf-8")
-planner_canvas = st.components.v2.component("floorplan_furniture_canvas_v04_2", html=HTML, css=CSS, js=JS)
+planner_canvas = st.components.v2.component("floorplan_furniture_canvas_v05_1", html=HTML, css=CSS, js=JS)

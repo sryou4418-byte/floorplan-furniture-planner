@@ -1,12 +1,12 @@
 // Pure gesture classifier; handlers own timers and pointer capture.
 export class Gesture {
-  constructor(threshold=6, holdMs=550) { this.threshold=threshold; this.holdMs=holdMs; this.reset(); }
+  constructor(threshold=6, holdMs=550, touchThreshold=14) { this.threshold=threshold; this.touchThreshold=touchThreshold; this.holdMs=holdMs; this.reset(); }
   reset() { this.current=null; }
   start(id,x,y,time,touch,target) { this.current={id,x,y,time,touch,target,moved:false}; }
   move(id,x,y) {
     const g=this.current;
     if (!g || g.id!==id) return false;
-    if (Math.hypot(x-g.x,y-g.y)>=this.threshold) g.moved=true;
+    if (Math.hypot(x-g.x,y-g.y)>=(g.touch?this.touchThreshold:this.threshold)) g.moved=true;
     return g.moved;
   }
   hold(id,time) {

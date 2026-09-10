@@ -12,6 +12,8 @@ function setup() {
   const dom=new JSDOM(`<button id="sidebar-button">Sidebar</button><aside data-testid="stSidebar" aria-expanded="false"></aside>${html}`,{url:'https://example.test'});
   const {window:w}=dom, doc=w.document, shell=doc.querySelector('.canvas-shell'), svg=doc.querySelector('svg');
   const events=[], timers=new Map(); let tid=0;
+  Object.defineProperty(shell.querySelector('.canvas-viewport'),'clientWidth',{value:640,configurable:true});
+  Object.defineProperty(w,'innerHeight',{value:900,writable:true});
   w.setTimeout=fn=>{timers.set(++tid,fn); return tid;}; w.clearTimeout=id=>timers.delete(id);
   svg.createSVGPoint=()=>({x:0,y:0,matrixTransform(){return {x:this.x*10,y:this.y*10};}});
   svg.getScreenCTM=()=>({inverse:()=>({})}); svg.setPointerCapture=()=>{};
@@ -43,7 +45,8 @@ test('long hold shows x; release does not edit/create; delete triggers once',()=
   assert.equal(h.shell.querySelector('.delete-badge').hidden,false);
   assert.equal(h.shape.parentElement.classList.contains('wiggle'),true);
   h.pointer(h.svg,'pointerup'); assert.equal(h.menu.hidden,true); assert.equal(h.events.length,0);
-  h.shell.querySelector('.delete-badge').click(); h.shell.querySelector('.delete-badge').click();
+  const badge=h.shell.querySelector('.delete-badge');
+  h.pointer(badge,'pointerdown'); h.pointer(badge,'pointerup'); h.pointer(badge,'pointerdown'); h.pointer(badge,'pointerup');
   assert.equal(h.events.length,1); assert.equal(h.events[0].action,'delete'); h.cleanup(); h.dom.window.close();
 });
 test('blank tap creates once and busy blocks repeated taps',()=>{
@@ -58,11 +61,12 @@ test('second finger cancels drag and pending hold',()=>{
   assert.equal(h.events.length,0); assert.equal(h.shape.parentElement.getAttribute('transform'),'translate(100,200)');
   assert.equal(h.timers.size,0); h.cleanup(); h.dom.window.close();
 });
-test('sidebar and outside interactions close room list without changing room',()=>{
-  const h=setup(), picker=h.shell.querySelector('details'); picker.open=true;
-  h.pointer(h.doc.querySelector('#sidebar-button'),'pointerdown'); assert.equal(picker.open,false);
-  picker.open=true; h.doc.querySelector('#sidebar-button').click(); assert.equal(picker.open,false);
-  assert.equal(h.events.length,0); h.cleanup(); h.dom.window.close();
+test('native room selector switches directly and sends only one event',()=>{
+  const h=setup(), picker=h.shell.querySelector('[aria-label="호실 선택"]');
+  assert.deepEqual([...picker.options].map(option=>option.value),['A','B']);
+  picker.value='B'; picker.dispatchEvent(new h.w.Event('change',{bubbles:true}));
+  assert.equal(h.events.length,1); assert.equal(h.events[0].type,'room'); assert.equal(h.events[0].label,'B');
+  h.cleanup(); h.dom.window.close();
 });
 test('edit shape normalizes circle payload, Delete inside input is harmless',()=>{
   const h=setup(); h.pointer(h.shape,'pointerdown'); h.pointer(h.svg,'pointerup');
@@ -79,5 +83,12 @@ test('cancelled pointer never moves, repeated render cleans old handlers',()=>{
   h.pointer(h.svg,'pointerup',30,30); assert.equal(h.events.length,0);
   const cleanup=h.render({data:h.data,parentElement:h.doc,setTriggerValue:(type,payload)=>h.events.push({type,...payload})});
   h.pointer(h.svg,'pointerdown'); h.pointer(h.svg,'pointerup'); assert.equal(h.events.length,1);
+  cleanup(); h.dom.window.close();
+});
+test('furniture-only rerender preserves fitted plan size',()=>{
+  const h=setup(), width=h.svg.style.width, height=h.svg.style.height;
+  const data={...h.data,furniture:[...h.data.furniture,{...h.data.furniture[0],id:'b',x_mm:1500}]};
+  const cleanup=h.render({data,parentElement:h.doc,setTriggerValue:()=>{}});
+  assert.equal(h.svg.style.width,width); assert.equal(h.svg.style.height,height);
   cleanup(); h.dom.window.close();
 });
