@@ -9,8 +9,8 @@ import streamlit as st
 
 from planner.runtime import ensure_build
 
-VERSION = "0.7.0"
-BUILD_ID = "0.7.0-1"
+VERSION = "0.8.0"
+BUILD_ID = "0.8.0-1"
 ensure_build(BUILD_ID)
 
 import planner.canvas as canvas_module
@@ -47,6 +47,18 @@ def clear_edit_widgets():
     for key in list(st.session_state):
         if key.startswith(("w_", "d_", "name_", "g_", "c_", "shape_")):
             del st.session_state[key]
+
+
+def clear_note_widgets():
+    for key in list(st.session_state):
+        if key.startswith("room_note_"):
+            del st.session_state[key]
+
+
+def save_room_note(room_key, widget_key):
+    work = st.session_state.workspace
+    if room_key in work.rooms:
+        work.rooms[room_key].room_note = st.session_state.get(widget_key, "")
 
 
 def init_state():
@@ -355,6 +367,29 @@ with list_column:
                 st.write(f"{item_name}  × {count}")
         else:
             st.caption("아직 배치된 가구가 없어요.")
+    with st.container(border=True):
+        st.markdown("**호실 메모**")
+        note_key = f"room_note_{st.session_state.workspace.active}"
+        if note_key not in st.session_state:
+            st.session_state[note_key] = project.room_note
+        st.text_area(
+            "호실 메모",
+            key=note_key,
+            label_visibility="collapsed",
+            height=110,
+            max_chars=500,
+            placeholder="이사·설비 관련 메모",
+            on_change=save_room_note,
+            args=(st.session_state.workspace.active, note_key),
+        )
+        if st.button(
+            "메모 저장",
+            key=f"save_{note_key}",
+            use_container_width=True,
+        ):
+            save_room_note(st.session_state.workspace.active, note_key)
+            st.toast("현재 호실 메모를 저장했습니다.")
+        st.caption("입력 후 저장하세요. 이 호실에만 저장됩니다.")
 
 with st.expander("프로젝트 저장 / 불러오기"):
     imported = st.file_uploader("프로젝트 불러오기", type=["fplan"], key="project_upload")
@@ -365,6 +400,7 @@ with st.expander("프로젝트 저장 / 불러오기"):
             st.session_state.project = work.project
             st.session_state.selected_ids = []
             clear_edit_widgets()
+            clear_note_widgets()
             st.rerun()
         except ValueError as exc:
             st.error(str(exc))

@@ -2,7 +2,7 @@ from pathlib import Path
 
 import streamlit as st
 
-CANVAS_VERSION = "0.7.0-1"
+CANVAS_VERSION = "0.8.0-1"
 ROOT = Path(__file__).parent
 HTML = """
 <div class="canvas-shell">
@@ -32,4 +32,4 @@ HTML = """
 """
 CSS = (ROOT / "canvas.css").read_text(encoding="utf-8")
 JS = (ROOT / "gesture.mjs").read_text(encoding="utf-8").replace("export class", "class") + "\n" + (ROOT / "canvas.js").read_text(encoding="utf-8")
-planner_canvas = st.components.v2.component("floorplan_furniture_canvas_v07_1", html=HTML, css=CSS, js=JS)
+planner_canvas = st.components.v2.component("floorplan_furniture_canvas_v08_1", html=HTML, css=CSS, js=JS)

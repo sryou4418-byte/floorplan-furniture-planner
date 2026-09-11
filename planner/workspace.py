@@ -5,7 +5,6 @@ from dataclasses import dataclass, field
 from datetime import datetime
 from io import BytesIO
 import json
-import re
 from zipfile import ZIP_DEFLATED, BadZipFile, ZipFile
 from zoneinfo import ZoneInfo
 
@@ -35,12 +34,10 @@ class Workspace:
         return self.project
 
 
-def download_name(workspace: Workspace, now: datetime | None = None) -> str:
+def download_name(_workspace: Workspace, now: datetime | None = None) -> str:
     now = now or datetime.now(ZoneInfo("Asia/Seoul"))
-    stamp = now.astimezone(ZoneInfo("Asia/Seoul")).strftime("%Y%m%d_%H%M%S")
-    prefix = workspace.active.split(" · ")[0] + "_" if " · " in workspace.active else ""
-    name = re.sub(r'[<>:"/\\|?*\x00-\x1f]', "_", workspace.project.room.name).strip(" .") or "공간"
-    return f"{prefix}{name[:80]}_{stamp}.fplan"
+    date = now.astimezone(ZoneInfo("Asia/Seoul")).strftime("%y%m%d")
+    return f"호실배치_{date}.fplan"
 
 
 def export_workspace(workspace: Workspace) -> bytes:
