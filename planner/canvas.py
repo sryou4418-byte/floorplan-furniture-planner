@@ -2,7 +2,7 @@ from pathlib import Path
 
 import streamlit as st
 
-CANVAS_VERSION = "0.6.0-1"
+CANVAS_VERSION = "0.7.0-1"
 ROOT = Path(__file__).parent
 HTML = """
 <div class="canvas-shell">
@@ -16,6 +16,13 @@ HTML = """
     <button type="button" class="assist-toggle" aria-pressed="true">정렬 보조 켬</button>
     <span class="canvas-help">빈 도면 탭: 가구 추가</span>
   </div>
+  <div class="utility-tools" role="group" aria-label="설비 표시 도구">
+    <button type="button" data-utility="" aria-pressed="true">가구 조작</button>
+    <button type="button" data-utility="water" aria-pressed="false"><span class="utility-dot water"></span>수도</button>
+    <button type="button" data-utility="electric" aria-pressed="false"><span class="utility-dot electric"></span>전기</button>
+    <button type="button" data-utility="three_phase" aria-pressed="false"><span class="utility-dot three-phase"></span>전기 3상</button>
+  </div>
+  <p class="utility-help">종류 선택 후 도면을 눌러 점 표시 · 점을 누르면 삭제 메뉴</p>
   <div class="canvas-viewport"><svg id="planner-svg" role="application" aria-label="가구 배치 작업판" tabindex="0"></svg></div>
   <button class="delete-badge" type="button" aria-label="선택 가구 삭제" hidden>×</button>
   <button class="delete-done" type="button" hidden>삭제 모드 완료</button>
@@ -25,4 +32,4 @@ HTML = """
 """
 CSS = (ROOT / "canvas.css").read_text(encoding="utf-8")
 JS = (ROOT / "gesture.mjs").read_text(encoding="utf-8").replace("export class", "class") + "\n" + (ROOT / "canvas.js").read_text(encoding="utf-8")
-planner_canvas = st.components.v2.component("floorplan_furniture_canvas_v06_1", html=HTML, css=CSS, js=JS)
+planner_canvas = st.components.v2.component("floorplan_furniture_canvas_v07_1", html=HTML, css=CSS, js=JS)

@@ -13,6 +13,8 @@ export default function(component) {
   const selected=new Set(data.selected_ids||[]), gesture=new Gesture(), pointers=new Set();
   let drag=null, timer=null, clickTimer=null, deleteId=null, deletePointer=null, busy=false, lastTouch=-Infinity;
   let assistEnabled=shell._assistEnabled!==false;
+  let utilityKind=shell._utilityKind||'';
+  const utilities={water:['수도','#2563eb'],electric:['전기','#facc15'],three_phase:['전기 3상','#ef4444']};
   let zoom=shell._room===data.room_key ? (shell._zoom||1) : 1;
   shell._room=data.room_key;
   let baseWidth=1;
@@ -34,6 +36,17 @@ export default function(component) {
   };
   const closeAll=()=>{closeMenu(); stopDelete(); cancel();};
   closeAll();
+  const updateUtilityTools=()=>{
+    shell.querySelectorAll('[data-utility]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.utility===utilityKind)));
+    shell.querySelector('.utility-help').textContent=utilityKind
+      ? `${utilities[utilityKind][0]}: 도면을 눌러 점 표시 · 종료는 가구 조작 또는 Esc`
+      : '종류 선택 후 도면을 눌러 점 표시 · 점을 누르면 삭제 메뉴';
+  };
+  updateUtilityTools();
+  for(const b of shell.querySelectorAll('[data-utility]')) listen(b,'click',()=>{
+    closeAll(); win.clearTimeout(clickTimer); utilityKind=b.dataset.utility;
+    shell._utilityKind=utilityKind; updateUtilityTools();
+  });
   const placeBadge=()=>{
     if(!deleteId) return;
     const r=groups.get(deleteId).getBoundingClientRect(), s=shell.getBoundingClientRect(), v=viewport.getBoundingClientRect();
@@ -44,6 +57,11 @@ export default function(component) {
     if(drag) return;
     const ratio=data.room.width_mm/data.room.depth_mm;
     svg.style.width=`${baseWidth*zoom}px`; svg.style.height=`${baseWidth*zoom/ratio}px`;
+    const unit=data.room.width_mm/(baseWidth*zoom);
+    svg.querySelectorAll('.utility-point').forEach(g=>{
+      g.querySelector('.utility-hit').setAttribute('r',22*unit);
+      g.querySelector('.utility-mark').setAttribute('r',6*unit);
+    });
     viewport.style.maxHeight=`${baseWidth/ratio+2}px`;
     shell.querySelector('.zoom-value').textContent=`${Math.round(zoom*100)}%`; shell._zoom=zoom; placeBadge();
   };
@@ -169,7 +187,7 @@ export default function(component) {
       input.required=true; wrap.append(input); form.append(wrap); return input;
     };
     const name=field('가구 이름',item.name); name.parentElement.className='menu-wide';
-    const wrap=doc.createElement('label'); wrap.textContent='모양';
+    const wrap=doc.createElement('label'); wrap.textContent='모양'; wrap.className='menu-wide';
     const shape=doc.createElement('select'); shape.setAttribute('aria-label','모양');
     for(const [value,label] of [['rectangle','사각형'],['circle','원형']]) {const o=doc.createElement('option'); o.value=value; o.textContent=label; shape.append(o);}
     shape.value=item.shape; wrap.append(shape); form.append(wrap);
@@ -223,8 +241,9 @@ export default function(component) {
   listen(badge,'click',event=>{event.preventDefault(); event.stopPropagation(); if(event.detail===0&&deleteId) command('delete',deleteId);});
   listen(done,'click',stopDelete);
   listen(doc,'keydown',event=>{
-    if(event.key==='Escape') {closeAll(); return;}
+    if(event.key==='Escape') {closeAll(); utilityKind=''; shell._utilityKind=''; updateUtilityTools(); return;}
     if(event.composedPath().some(e=>e.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(e.tagName))) return;
+    if(event.composedPath().some(e=>e.classList?.contains('utility-point'))) return;
     if(event.ctrlKey||event.altKey||event.metaKey||event.repeat||!menu.hidden) return;
     if(['Delete','Backspace'].includes(event.key)&&selected.size) {event.preventDefault(); send('delete',{ids:[...selected]});}
   });
@@ -245,6 +264,28 @@ export default function(component) {
       event.preventDefault(); event.stopPropagation(); win.clearTimeout(clickTimer); editor(items.get(item.id));
     });
   }
+  const utilityMenu=(item,event)=>{
+    closeAll(); win.clearTimeout(clickTimer); menu.replaceChildren(); menu.hidden=false;
+    menu.classList.remove('quick-editor'); menu.classList.add('floating');
+    const r=shell.getBoundingClientRect(); menu.style.width='220px';
+    menu.style.left=`${Math.max(4,Math.min(event.clientX-r.left,r.width-228))}px`;
+    menu.style.top=`${Math.max(4,Math.min(event.clientY-r.top,r.height-120))}px`;
+    button(`${utilities[item.kind][0]} 표시 삭제`,()=>command('utility_delete',item.id));
+    button('닫기',closeMenu);
+  };
+  for(const item of data.utility_points||[]) {
+    if(!utilities[item.kind]) continue;
+    const g=node('g',{class:'utility-point',transform:`translate(${item.x_mm},${item.y_mm})`,
+      role:'button',tabindex:'0','aria-label':`${utilities[item.kind][0]} 표시: 삭제 메뉴 열기`});
+    g.dataset.utilityId=item.id;
+    const hit=node('circle',{class:'utility-hit',r:22,fill:'transparent'});
+    const dot=node('circle',{class:'utility-mark',r:6,fill:utilities[item.kind][1],stroke:'#333','stroke-width':1.5,'vector-effect':'non-scaling-stroke'});
+    const title=node('title'); title.textContent=utilities[item.kind][0]; g.append(hit,dot,title); svg.append(g);
+    listen(g,'contextmenu',event=>{event.preventDefault(); event.stopPropagation(); utilityMenu(item,event);});
+    listen(g,'keydown',event=>{
+      if(['Enter',' '].includes(event.key)) {event.preventDefault(); const r=g.getBoundingClientRect(); utilityMenu(item,{clientX:r.right,clientY:r.top});}
+    });
+  }
   listen(svg,'contextmenu',event=>{
     if(event.target.closest?.('.furniture')||event.pointerType==='touch'||event.pointerType==='pen'||win.performance.now()-lastTouch<1200) return;
     event.preventDefault(); blankContext(event);
@@ -253,6 +294,13 @@ export default function(component) {
     pointers.add(event.pointerId);
     if(pointers.size>1) {cancel(); return;}
     if(busy||event.button!==0||event.isPrimary===false) return;
+    const utilityTarget=event.target.closest?.('.utility-point')?.dataset.utilityId;
+    if(utilityTarget||utilityKind) {
+      closeAll(); win.clearTimeout(clickTimer);
+      gesture.start(event.pointerId,event.clientX,event.clientY,event.timeStamp,
+        event.pointerType!=='mouse',utilityTarget?`utility:${utilityTarget}`:'utility:create');
+      svg.setPointerCapture(event.pointerId); return;
+    }
     const target=event.target.closest?.('.furniture')?.parentElement.dataset.id||null;
     if(deleteId) {stopDelete(); if(!target) return;}
     const touch=event.pointerType==='touch'||event.pointerType==='pen';
@@ -276,7 +324,20 @@ export default function(component) {
   });
   listen(svg,'pointerup',event=>{
     pointers.delete(event.pointerId); win.clearTimeout(timer);
+    const utilityTarget=gesture.current?.target;
     const current=drag, outcome=gesture.end(event.pointerId,event.clientX,event.clientY,event.timeStamp); drag=null;
+    if(utilityTarget?.startsWith('utility:')) {
+      if(outcome!=='tap') return;
+      if(utilityTarget==='utility:create') {
+        const p=point(event);
+        if(p.x>=0&&p.y>=0&&p.x<=data.room.width_mm&&p.y<=data.room.depth_mm)
+          send('action',{action:'utility_create',kind:utilityKind,x_mm:p.x,y_mm:p.y});
+      } else {
+        const item=(data.utility_points||[]).find(p=>p.id===utilityTarget.slice(8));
+        if(item) utilityMenu(item,event);
+      }
+      return;
+    }
     if(outcome==='drag'&&current) {
       closeMenu(); const p=point(event);
       const final=current.preview||snapDelta(current.ids,p.x-current.start.x,p.y-current.start.y,event.altKey||current.touch);

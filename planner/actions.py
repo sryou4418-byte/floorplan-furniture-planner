@@ -5,7 +5,21 @@ import re
 from uuid import uuid4
 
 from .geometry import bounds, effective_size, is_inside, overlaps
-from .models import Furniture, Project
+from .models import Furniture, Project, UtilityPoint
+
+
+def utility_action(project: Project, payload: dict) -> None:
+    if payload["action"] == "utility_create":
+        point = UtilityPoint(payload["kind"], payload["x_mm"], payload["y_mm"])
+        point.validate()
+        if not (0 <= point.x_mm <= project.room.width_mm
+                and 0 <= point.y_mm <= project.room.depth_mm):
+            raise ValueError("도면 안에 설비 표시를 찍어 주세요.")
+        project.utility_points.append(point)
+    elif payload["action"] == "utility_delete":
+        project.utility_points = [p for p in project.utility_points if p.id != payload["id"]]
+    else:
+        raise ValueError("지원하지 않는 설비 작업입니다.")
 
 
 _COPY_SUFFIX = re.compile(r"(?:\s+복사)+\s*$")

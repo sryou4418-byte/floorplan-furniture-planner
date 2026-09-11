@@ -8,7 +8,7 @@ import {Gesture} from '../planner/gesture.mjs';
 const python=readFileSync(new URL('../planner/canvas.py',import.meta.url),'utf8');
 const html=python.split('HTML = """')[1].split('"""')[0];
 const source=readFileSync(new URL('../planner/canvas.js',import.meta.url),'utf8').replace('export default function','function render');
-function setup() {
+function setup(extra={}) {
   const dom=new JSDOM(`<button id="sidebar-button">Sidebar</button><aside data-testid="stSidebar" aria-expanded="false"></aside>${html}`,{url:'https://example.test'});
   const {window:w}=dom, doc=w.document, shell=doc.querySelector('.canvas-shell'), svg=doc.querySelector('svg');
   const events=[], timers=new Map(); let tid=0;
@@ -20,7 +20,7 @@ function setup() {
   const factory=new Function('Gesture','AbortController','ResizeObserver','MutationObserver',`${source}; return render;`);
   const render=factory(Gesture,w.AbortController,class {observe(){} disconnect(){}},w.MutationObserver);
   const data={room:{width_mm:6000,depth_mm:6000},room_key:'A',room_options:['A','B'],selected_ids:[],
-    furniture:[{id:'a',name:'책상',width_mm:1200,depth_mm:600,x_mm:100,y_mm:200,rotation:0,shape:'rectangle',group:'',fill:'green',stroke:'black'}]};
+    furniture:[{id:'a',name:'책상',width_mm:1200,depth_mm:600,x_mm:100,y_mm:200,rotation:0,shape:'rectangle',group:'',fill:'green',stroke:'black'}],...extra};
   const cleanup=render({data,parentElement:doc,setTriggerValue:(type,payload)=>events.push({type,...payload})});
   const pointer=(target,type,x=10,y=10,id=1,pointerType='touch')=>{
     const e=new w.Event(type,{bubbles:true,composed:true,cancelable:true});
@@ -124,4 +124,44 @@ test('selected desktop furniture shows integer millimeter gap helpers',()=>{
   const labels=[...h.shell.querySelectorAll('.measure-label')].map(node=>node.textContent);
   assert.ok(labels.includes('100 mm')); assert.ok(labels.includes('200 mm'));
   cleanup(); h.dom.window.close();
+});
+
+for(const kind of ['water','electric','three_phase']) for(const device of ['mouse','touch']) {
+  test(`${device} places ${kind} once at the plan point without adding furniture`,()=>{
+    const h=setup(); h.shell.querySelector(`[data-utility="${kind}"]`).click();
+    h.pointer(h.shape,'pointerdown',25,35,1,device); h.pointer(h.svg,'pointerup',25,35,1,device);
+    h.pointer(h.svg,'pointerdown',25,35,1,device); h.pointer(h.svg,'pointerup',25,35,1,device);
+    assert.equal(h.events.length,1); assert.equal(h.events[0].action,'utility_create');
+    assert.equal(h.events[0].kind,kind); assert.equal(h.events[0].x_mm,250); assert.equal(h.events[0].y_mm,350);
+    h.cleanup(); h.dom.window.close();
+  });
+}
+
+test('utility drag, multitouch and cancellation do not place points',()=>{
+  const h=setup(); h.shell.querySelector('[data-utility="water"]').click();
+  h.pointer(h.svg,'pointerdown',20,20); h.pointer(h.svg,'pointermove',60,60); h.pointer(h.svg,'pointerup',60,60);
+  h.pointer(h.svg,'pointerdown'); h.pointer(h.svg,'pointerdown',40,40,2); h.pointer(h.svg,'pointerup'); h.pointer(h.svg,'pointerup',40,40,2);
+  h.pointer(h.svg,'pointerdown'); h.pointer(h.svg,'pointercancel'); h.pointer(h.svg,'pointerup');
+  assert.equal(h.events.length,0); h.cleanup(); h.dom.window.close();
+});
+
+test('utility points render specified colors above furniture and delete only through their menu',()=>{
+  const h=setup({utility_points:[{id:'u1',kind:'water',x_mm:100,y_mm:200},{id:'u2',kind:'electric',x_mm:300,y_mm:400},{id:'u3',kind:'three_phase',x_mm:500,y_mm:600}]});
+  assert.deepEqual([...h.svg.querySelectorAll('.utility-mark')].map(e=>e.getAttribute('fill')),['#2563eb','#facc15','#ef4444']);
+  const point=h.svg.querySelector('.utility-hit');
+  h.pointer(point,'pointerdown'); h.pointer(h.svg,'pointerup');
+  assert.equal(h.events.length,0); assert.equal(h.menu.querySelector('button').textContent,'수도 표시 삭제');
+  h.menu.querySelector('button').click();
+  assert.equal(h.events.length,1); assert.equal(h.events[0].action,'utility_delete'); assert.equal(h.events[0].id,'u1');
+  h.cleanup(); h.dom.window.close();
+});
+
+test('Escape exits point mode and furniture editor keeps shape above the dimension pair',()=>{
+  const h=setup(); h.shell.querySelector('[data-utility="electric"]').click();
+  h.doc.dispatchEvent(new h.w.KeyboardEvent('keydown',{key:'Escape',bubbles:true}));
+  assert.equal(h.shell.querySelector('[data-utility=""]').getAttribute('aria-pressed'),'true');
+  h.pointer(h.shape,'pointerdown'); h.pointer(h.svg,'pointerup');
+  assert.equal(h.menu.querySelector('select').parentElement.className,'menu-wide');
+  assert.equal(h.menu.querySelectorAll('input[type="number"]').length,2);
+  h.cleanup(); h.dom.window.close();
 });

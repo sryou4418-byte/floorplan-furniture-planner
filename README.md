@@ -1,6 +1,6 @@
 # 도면 가구 배치 (Floorplan Furniture Planner)
 
-Codex 개발 재개: [AGENTS.md](AGENTS.md) → [최신 전체 인수인계](docs/HANDOFF.md)를 먼저 읽으세요. 현재 빌드는 v0.6.0입니다.
+Codex 개발 재개: [AGENTS.md](AGENTS.md) → [최신 전체 인수인계](docs/HANDOFF.md)를 먼저 읽으세요. 현재 로컬 빌드는 v0.7.0입니다. 클라우드에는 별도 요청 시에만 업로드합니다.
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://hynx9cgxdvl7xfesmdm3ys.streamlit.app/)
 
@@ -8,7 +8,11 @@ Codex 개발 재개: [AGENTS.md](AGENTS.md) → [최신 전체 인수인계](doc
 
 - 공개 앱: https://hynx9cgxdvl7xfesmdm3ys.streamlit.app/
 
-## 현재 기능 (v0.6.0)
+## 현재 기능 (v0.7.0)
+
+- 상단 수도(파랑)·전기(노랑)·전기 3상(빨강) 선택 → 도면 클릭/탭으로 점 표시
+- 점을 누르면 삭제 메뉴, 가구 조작/Esc로 표시 종료. 호실별 유지 및 .fplan 저장/불러오기 지원
+- 가구 우클릭 편집창 가로·세로 입력칸 나란히 정렬
 
 - 데스크톱 왼쪽 사이드바에 가구 추가·편집·호실 치수 도구, 본문 하단에 프로젝트 저장·불러오기
 - 오른쪽 소형 패널에 배치 가구 이름별 개수 표시

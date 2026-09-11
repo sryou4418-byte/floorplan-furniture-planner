@@ -55,6 +55,23 @@ class Furniture:
 
 
 @dataclass(slots=True)
+class UtilityPoint:
+    kind: str
+    x_mm: float
+    y_mm: float
+    id: str = field(default_factory=lambda: uuid4().hex)
+
+    def validate(self) -> None:
+        if self.kind not in ("water", "electric", "three_phase"):
+            raise ValueError("지원하지 않는 설비 종류입니다.")
+        if not isinstance(self.id, str) or not self.id:
+            raise ValueError("설비 표시 ID가 올바르지 않습니다.")
+        if not all(isinstance(v, (int, float)) and not isinstance(v, bool) and isfinite(v)
+                   for v in (self.x_mm, self.y_mm)):
+            raise ValueError("설비 위치는 유한한 숫자여야 합니다.")
+
+
+@dataclass(slots=True)
 class Project:
     room: Room = field(default_factory=Room)
     furniture: list[Furniture] = field(default_factory=list)
@@ -62,12 +79,14 @@ class Project:
     plan_image_mime: str | None = None
     plan_image_bytes: bytes | None = field(default=None, repr=False)
     schema_version: int = SCHEMA_VERSION
+    utility_points: list[UtilityPoint] = field(default_factory=list)
 
     def to_dict(self) -> dict[str, Any]:
         return {
             "schema_version": self.schema_version,
             "room": asdict(self.room),
             "furniture": [asdict(item) for item in self.furniture],
+            "utility_points": [asdict(item) for item in self.utility_points],
             "plan_image_name": self.plan_image_name,
             "plan_image_mime": self.plan_image_mime,
         }
@@ -81,9 +100,15 @@ class Project:
         furniture = [Furniture(**item) for item in data.get("furniture", [])]
         for item in furniture:
             item.validate()
+        utility_points = [UtilityPoint(**item) for item in data.get("utility_points", [])]
+        for item in utility_points:
+            item.validate()
+        if len({item.id for item in utility_points}) != len(utility_points):
+            raise ValueError("설비 표시 ID가 중복되었습니다.")
         return cls(
             room=room,
             furniture=furniture,
+            utility_points=utility_points,
             plan_image_name=data.get("plan_image_name"),
             plan_image_mime=data.get("plan_image_mime"),
         )

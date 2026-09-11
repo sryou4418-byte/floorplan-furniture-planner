@@ -3,13 +3,14 @@ from __future__ import annotations
 # ruff: noqa: E402 -- Refresh warm-worker dependencies before binding imports.
 
 import base64
+from dataclasses import asdict
 
 import streamlit as st
 
 from planner.runtime import ensure_build
 
-VERSION = "0.6.0"
-BUILD_ID = "0.6.0-1"
+VERSION = "0.7.0"
+BUILD_ID = "0.7.0-1"
 ensure_build(BUILD_ID)
 
 import planner.canvas as canvas_module
@@ -19,6 +20,7 @@ from planner.actions import (
     edit_furniture,
     furniture_name_counts,
     move_furniture,
+    utility_action,
 )
 from planner.geometry import analyze, occupied_ratio
 from planner.models import Furniture, Room
@@ -115,7 +117,9 @@ def action_from_canvas():
     if not payload:
         return
     try:
-        if payload["action"] == "create":
+        if payload["action"] in ("utility_create", "utility_delete"):
+            utility_action(st.session_state.project, payload)
+        elif payload["action"] == "create":
             st.session_state.selected_ids = create_sample(
                 st.session_state.project, payload["x_mm"], payload["y_mm"]
             )
@@ -314,6 +318,7 @@ with canvas_column:
             "room": {"width_mm": project.room.width_mm, "depth_mm": project.room.depth_mm},
             "room_key": st.session_state.workspace.active,
             "furniture": status_payload(project),
+            "utility_points": [asdict(p) for p in project.utility_points],
             "room_options": options,
             "revision": st.session_state.canvas_revision,
             "selected_ids": st.session_state.selected_ids,
