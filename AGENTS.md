@@ -94,10 +94,10 @@ project/
 - 앱 접속자 모두가 공용 배치를 저장할 수 있는 Supabase 수동 저장·불러오기를 추가했다. 실시간 반영은 없고, 버전 비교로 동시 저장 덮어쓰기를 방지한다.
 - Supabase 연결 실패는 현재 화면 배치를 변경하지 않는다. 기존 `.fplan` 파일은 백업·복원 수단으로 유지한다.
 - 검증: Python 56개, Node DOM/제스처 33개, ruff, JS 구문, diff 검사 통과. 로컬 실제 브라우저에서 수도점 생성·벽 정렬 드래그·Delete 삭제와 서버 미연결 안내를 확인했다.
-- 실제 Supabase 프로젝트에 migration과 공개 키를 적용하고 공용 배치 최초 저장·다시 불러오기를 통합 검증했다. 모바일 실기기 검증과 공개 Streamlit 앱의 Secrets 적용 후 검증은 남아 있다.
+- 실제 Supabase 프로젝트에 migration과 공개 키를 적용하고 공용 배치 최초 저장·다시 불러오기를 통합 검증했다. 공개 Streamlit 앱에도 Secrets를 적용해 서버 버전 1 불러오기를 확인했다. 모바일 실기기 검증은 남아 있다.
 - 기본 작업은 로컬 저장·실행·테스트다. GitHub push, 원격 커밋/PR, Supabase SQL 적용, 클라우드 배포는 사용자가 별도로 요청한 경우에만 수행한다.
 - 로컬 실행: PowerShell에서 `.\.venv\Scripts\python.exe -m streamlit run app.py --server.address 127.0.0.1 --server.headless true --browser.gatherUsageStats false` 후 http://127.0.0.1:8501 접속.
-- 이번 변경은 `codex/utility-point-drag` 브랜치에서 검증했다. Supabase 프로젝트 설정과 공용 배치 최초 저장은 적용했으며, GitHub main·공개 앱 반영은 별도 배포 단계에서 확인한다.
+- 이번 변경은 `main`에 푸시했고 공개 Streamlit 앱 v0.9.0 배포와 Supabase 서버 불러오기를 확인했다.
 
 # Codex 시작 지침
 

@@ -20,10 +20,10 @@
 - 점 좌표는 mm로 호실별 보관하고 기존 .fplan 파일 저장/불러오기에 포함한다. 이전 파일은 설비 표시가 없는 것으로 읽는다. 점은 가구 수·충돌·점유율 계산에서 제외한다.
 - 우클릭 → 가구 편집에서 모양을 한 줄로 분리하여 가로·세로 입력칸을 같은 줄, 같은 너비와 높이로 정렬했다.
 - 기본 작업은 사용자 컴퓨터의 로컬 저장·실행·테스트다. GitHub push, 원격 커밋/PR, 클라우드 업로드와 배포는 사용자가 별도로 요청한 경우에만 수행한다. 아래 과거 자동 push/배포 지침보다 이 원칙을 우선한다.
-- 검증: Python 56개, Node DOM/제스처 33개, ruff, JS 구문, diff 검사 통과. 로컬 실제 브라우저에서 수도점 생성·벽 정렬 이동·Delete 삭제와 Supabase 미연결 안내를 확인했고, 실제 Supabase 테이블·공개 키로 최초 저장·다시 불러오기를 통합 검증했다.
-- 미검증: 공개 Streamlit 앱의 Secrets 적용 후 저장·불러오기, 실기기 모바일 터치.
+- 검증: Python 56개, Node DOM/제스처 33개, ruff, JS 구문, diff 검사 통과. 로컬 실제 브라우저에서 수도점 생성·벽 정렬 이동·Delete 삭제와 Supabase 미연결 안내를 확인했고, 실제 Supabase 테이블·공개 키로 최초 저장·다시 불러오기를 통합 검증했다. 공개 Streamlit 앱에도 Secrets를 적용해 서버 버전 1 불러오기를 확인했다.
+- 미검증: 실기기 모바일 터치.
 - 로컬 실행: PowerShell에서 `.\.venv\Scripts\python.exe -m streamlit run app.py --server.address 127.0.0.1 --server.headless true --browser.gatherUsageStats false` 후 http://127.0.0.1:8501 접속.
-- 이번 변경은 `codex/utility-point-drag` 브랜치에서 검증했다. Supabase 프로젝트 설정과 공용 배치 최초 저장은 적용했으며, GitHub main·공개 앱 반영은 배포 단계에서 확인한다.
+- 이번 변경은 `main`에 푸시했고 공개 Streamlit 앱 v0.9.0 배포와 Supabase 서버 불러오기를 확인했다.
 
 # 다음 개발 세션 인수인계
 

@@ -19,8 +19,8 @@
 - Supabase 공용 작업공간 추가. 첫 세션에서 최신본을 한 번 불러오고, 이후 `현재 배치를 서버에 저장` 또는 `최신 서버 배치 불러오기`로만 반영.
 - 로그인 없이 모든 접속자에게 공용 `shared` 행의 읽기·최초 저장·수정을 허용하되 삭제 권한은 제공하지 않음. revision 비교 후 저장해 다른 사용자의 선행 저장을 감지.
 - `.fplan` 파일 저장·불러오기를 `파일 백업 / 불러오기`로 유지. Supabase 연결 실패·충돌·손상 응답은 현재 화면 배치를 손상하지 않고 오류로 표시.
-- 검증: Python 56개, Node DOM/제스처 33개, ruff, JavaScript 구문, `git diff --check` 통과. 로컬 실제 브라우저에서 수도점 생성·왼쪽 벽 정렬 드래그·Delete 삭제와 Supabase 미연결 안내를 확인. 실제 Supabase 프로젝트에 migration·공개 키를 적용하고 최초 저장·다시 불러오기도 통합 검증.
-- 미검증: 공개 Streamlit 앱의 Secrets 적용 후 저장·불러오기, iPhone Safari·Android Chrome 실기기 터치.
+- 검증: Python 56개, Node DOM/제스처 33개, ruff, JavaScript 구문, `git diff --check` 통과. 로컬 실제 브라우저에서 수도점 생성·왼쪽 벽 정렬 드래그·Delete 삭제와 Supabase 미연결 안내를 확인. 실제 Supabase 프로젝트에 migration·공개 키를 적용하고 최초 저장·다시 불러오기를 통합 검증했으며, 공개 Streamlit 앱에도 Secrets를 적용해 서버 버전 1 불러오기를 확인.
+- 미검증: iPhone Safari·Android Chrome 실기기 터치.
 
 ## v0.8.0 — 2026-09-11
 
