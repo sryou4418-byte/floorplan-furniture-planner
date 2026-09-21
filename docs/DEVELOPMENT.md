@@ -8,7 +8,7 @@
 - planner/workspace.py: 호실별 객체 소유, 호실 전환, v2 파일 입출력, 한국 시간 파일명.
 - planner/models.py: 단일 호실과 가구. circle은 width_mm == depth_mm인 지름.
 - planner/geometry.py: 실제 mm 단위 판정. 화면 배율과 독립.
-- planner/canvas.py: SVG 표시와 이벤트. 비율 변환은 getScreenCTM().inverse() 사용.
+- planner/canvas.py: SVG 표시와 이벤트. 비율 변환은 getScreenCTM().inverse()를 사용하고, 전체보기 세로 도면은 표시 계층만 회전해 원래 mm 좌표로 역변환한다.
 - planner/canvas.js / canvas.css: 작업판 UI 및 포인터 이벤트/표시. gesture.mjs는 순수 상태 전이 분류로 Node 테스트 대상.
 - planner/actions.py: 이름 변경·회전·복사·삭제 공통 명령. 복사는 그룹을 해제하고 안전한 후보 위치 탐색.
 - planner/server_storage.py: Supabase Data REST API 공용 작업공간 저장·불러오기, 크기·응답 검증, revision 충돌 방지.

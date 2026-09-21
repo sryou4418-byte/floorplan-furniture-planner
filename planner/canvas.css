@@ -22,6 +22,7 @@
 .zoom-value { min-width:44px; text-align:center; font-size:13px; }
 .canvas-help { font-size:12px; color:#62666d; margin-left:auto; }
 .assist-toggle[aria-pressed="true"] { color:#075985; border-color:#7dd3fc; background:#f0f9ff; }
+.fullscreen-toggle[aria-pressed="true"] { color:#fff; border-color:#1d4ed8; background:#2563eb; }
 .canvas-viewport { width:100%; overflow:auto; border-radius:10px; background:#f5f6f8; }
 #planner-svg { display:block; margin:0 auto; background:#fafafa; touch-action:pan-x pan-y pinch-zoom; -webkit-touch-callout:none; outline:none !important; }
 #planner-svg:focus, #planner-svg:focus-visible, .canvas-viewport:focus { outline:none !important; box-shadow:none !important; }
@@ -52,10 +53,19 @@
 .menu-error { color:#b42318; font-size:13px; }
 .canvas-message { font-size:12px; line-height:1.5; margin:6px 0 0; color:#62666d; }
 .canvas-message:empty { display:none; }
+.canvas-shell.is-fullscreen { position:fixed; inset:0; z-index:2147483000; width:100vw; height:100dvh; padding:10px; box-sizing:border-box; display:flex; flex-direction:column; overflow:hidden; background:#f5f6f8; }
+.canvas-shell.is-fullscreen h1, .canvas-shell.is-fullscreen .room-picker, .canvas-shell.is-fullscreen .utility-help { display:none; }
+.canvas-shell.is-fullscreen .canvas-tools { flex:0 0 auto; margin-bottom:6px; }
+.canvas-shell.is-fullscreen .utility-tools { flex:0 0 auto; margin-bottom:6px; }
+.canvas-shell.is-fullscreen .canvas-viewport { flex:1 1 auto; min-height:0; height:calc(100dvh - 116px); max-height:none !important; border:1px solid #d5d7db; box-sizing:border-box; }
+.canvas-shell.is-fullscreen .canvas-message { flex:0 0 auto; }
 @media(max-width:640px) {
   .canvas-shell h1 { font-size:18px; line-height:1.6; }
   .canvas-help { flex-basis:100%; margin:0; }
   .canvas-tools { gap:4px; }
   .assist-toggle, .assist-layer { display:none; }
+  .canvas-shell.is-fullscreen { padding:6px; }
+  .canvas-shell.is-fullscreen .canvas-help { display:none; }
+  .canvas-shell.is-fullscreen .canvas-viewport { height:calc(100dvh - 164px); }
   .furniture-menu.quick-editor { position:fixed; left:8px !important; right:8px; top:auto !important; bottom:calc(8px + env(safe-area-inset-bottom,0px)); width:auto !important; z-index:1000; max-height:min(58dvh,520px); overflow:auto; margin:0; box-shadow:0 10px 35px #0005; }
 }

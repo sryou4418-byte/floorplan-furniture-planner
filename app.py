@@ -9,8 +9,8 @@ import streamlit as st
 
 from planner.runtime import ensure_build
 
-VERSION = "0.9.0"
-BUILD_ID = "0.9.0-1"
+VERSION = "0.10.0"
+BUILD_ID = "0.10.0-1"
 ensure_build(BUILD_ID)
 
 import planner.canvas as canvas_module

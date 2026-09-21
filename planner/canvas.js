@@ -6,7 +6,7 @@ export default function(component) {
   const listen=(target,event,fn,options={})=>target.addEventListener(event,fn,{...options,signal});
   const svg=shell.querySelector('svg'), viewport=shell.querySelector('.canvas-viewport');
   const menu=shell.querySelector('.furniture-menu'), roomSelect=shell.querySelector('.room-picker select');
-  const assistToggle=shell.querySelector('.assist-toggle');
+  const assistToggle=shell.querySelector('.assist-toggle'), fullscreenButton=shell.querySelector('.fullscreen-toggle');
   const badge=shell.querySelector('.delete-badge'), done=shell.querySelector('.delete-done');
   const message=shell.querySelector('.canvas-message'); message.textContent='';
   const items=new Map(data.furniture.map(f=>[f.id,{...f}])), groups=new Map();
@@ -18,6 +18,8 @@ export default function(component) {
   let utilityKind=shell._utilityKind||'';
   const utilities={water:['수도','#2563eb'],electric:['전기','#facc15'],three_phase:['전기 3상','#ef4444']};
   let zoom=shell._room===data.room_key ? (shell._zoom||1) : 1;
+  let fullscreen=doc.fullscreenElement===shell||shell._fullscreenFallback===true;
+  let rotated=fullscreen&&data.room.depth_mm>data.room.width_mm, scene=null;
   shell._room=data.room_key;
   let baseWidth=1;
   const send=(type,payload)=>{
@@ -45,7 +47,11 @@ export default function(component) {
   const cancel=()=>{
     win.clearTimeout(timer); gesture.reset();
     if(drag) for(const id of drag.ids) {const f=items.get(id); groups.get(id)?.setAttribute('transform',`translate(${f.x_mm},${f.y_mm})`);}
-    if(utilityDrag) utilityGroups.get(utilityDrag.id)?.setAttribute('transform',`translate(${utilityDrag.item.x_mm},${utilityDrag.item.y_mm})`);
+    if(utilityDrag) {
+      const group=utilityGroups.get(utilityDrag.id);
+      group?.setAttribute('transform',`translate(${utilityDrag.item.x_mm},${utilityDrag.item.y_mm})`);
+      if(group) positionUtilityVisual(group,utilityDrag.item.x_mm,utilityDrag.item.y_mm);
+    }
     drag=null; utilityDrag=null;
   };
   const closeAll=()=>{closeMenu(); stopDelete(); cancel();};
@@ -69,24 +75,27 @@ export default function(component) {
   };
   const fit=()=>{
     if(drag||utilityDrag) return;
-    const ratio=data.room.width_mm/data.room.depth_mm;
+    const ratio=rotated?data.room.depth_mm/data.room.width_mm:data.room.width_mm/data.room.depth_mm;
     svg.style.width=`${baseWidth*zoom}px`; svg.style.height=`${baseWidth*zoom/ratio}px`;
-    const unit=data.room.width_mm/(baseWidth*zoom);
+    const unit=(rotated?data.room.depth_mm:data.room.width_mm)/(baseWidth*zoom);
     svg.querySelectorAll('.utility-point').forEach(g=>{
       g.querySelector('.utility-hit').setAttribute('r',22*unit);
       g.querySelector('.utility-mark').setAttribute('r',6*unit);
+      const item=utilityItems.get(g.dataset.utilityId);
+      if(item) positionUtilityVisual(g,item.x_mm,item.y_mm);
     });
-    viewport.style.maxHeight=`${baseWidth/ratio+2}px`;
+    viewport.style.maxHeight=fullscreen?'none':`${baseWidth/ratio+2}px`;
     shell.querySelector('.zoom-value').textContent=`${Math.round(zoom*100)}%`; shell._zoom=zoom; placeBadge();
   };
   const measure=(force=false)=>{
     if(!menu.hidden) return;
     const h=win.visualViewport?.height||win.innerHeight;
     const containerWidth=Math.max(1,viewport.clientWidth-4), previous=shell._fitBasis;
-    if(force||!previous||previous.room!==data.room_key||Math.abs(previous.containerWidth-containerWidth)>2) {
-      const ratio=data.room.width_mm/data.room.depth_mm;
-      baseWidth=Math.min(containerWidth,Math.max(220,h*.7)*ratio);
-      shell._fitBasis={room:data.room_key,containerWidth,screenHeight:h,baseWidth};
+    if(force||!previous||previous.room!==data.room_key||previous.fullscreen!==fullscreen||previous.rotated!==rotated||Math.abs(previous.containerWidth-containerWidth)>2) {
+      const ratio=rotated?data.room.depth_mm/data.room.width_mm:data.room.width_mm/data.room.depth_mm;
+      const availableHeight=fullscreen?Math.max(220,viewport.clientHeight-4):Math.max(220,h*.7);
+      baseWidth=Math.min(containerWidth,availableHeight*ratio);
+      shell._fitBasis={room:data.room_key,containerWidth,screenHeight:h,fullscreen,rotated,baseWidth};
     } else baseWidth=previous.baseWidth;
     fit();
   };
@@ -94,6 +103,7 @@ export default function(component) {
   listen(win,'resize',()=>measure()); if(win.visualViewport) listen(win.visualViewport,'resize',()=>measure());
   listen(viewport,'scroll',placeBadge,{passive:true});
   for(const b of shell.querySelectorAll('[data-tool]')) listen(b,'click',()=>{
+    if(b.dataset.tool==='fullscreen') {closeAll(); toggleFullscreen(); return;}
     const refit=b.dataset.tool==='fit'; closeAll(); zoom=refit?1:Math.min(2,Math.max(.5,zoom+(b.dataset.tool==='in'?.1:-.1))); measure(refit);
   });
   const updateAssistToggle=()=>{
@@ -115,16 +125,49 @@ export default function(component) {
   },{capture:true});
   listen(doc,'click',event=>{if(!event.composedPath().includes(shell)) closeAll();});
   listen(doc,'focusin',event=>{if(!event.composedPath().includes(shell)) closeAll();});
-  svg.replaceChildren(); svg.setAttribute('viewBox',`0 0 ${data.room.width_mm} ${data.room.depth_mm}`);
+  svg.replaceChildren();
   const node=(tag,attrs={})=>{const e=doc.createElementNS('http://www.w3.org/2000/svg',tag); for(const [k,v] of Object.entries(attrs)) e.setAttribute(k,v); return e;};
-  if(data.image_data_url) svg.append(node('image',{href:data.image_data_url,width:data.room.width_mm,height:data.room.depth_mm,preserveAspectRatio:'none',opacity:.65}));
-  svg.append(node('rect',{width:data.room.width_mm,height:data.room.depth_mm,class:'room-border'}));
-  const assistLayer=node('g',{class:'assist-layer'}); svg.append(assistLayer);
-  const point=event=>{const p=svg.createSVGPoint(); p.x=event.clientX; p.y=event.clientY; return p.matrixTransform(svg.getScreenCTM().inverse());};
+  scene=node('g',{class:'plan-scene'}); svg.append(scene);
+  const applyOrientation=(remeasure=true)=>{
+    fullscreen=doc.fullscreenElement===shell||shell._fullscreenFallback===true;
+    rotated=fullscreen&&data.room.depth_mm>data.room.width_mm;
+    shell.classList.toggle('is-fullscreen',fullscreen);
+    fullscreenButton.setAttribute('aria-pressed',String(fullscreen));
+    fullscreenButton.textContent=fullscreen?'전체보기 닫기':'도면 전체보기';
+    svg.setAttribute('viewBox',rotated
+      ? `0 0 ${data.room.depth_mm} ${data.room.width_mm}`
+      : `0 0 ${data.room.width_mm} ${data.room.depth_mm}`);
+    scene.setAttribute('transform',rotated?`matrix(0 1 -1 0 ${data.room.depth_mm} 0)`:'');
+    scene.querySelectorAll('.furniture-label').forEach(label=>{
+      const x=label.getAttribute('x'), y=label.getAttribute('y');
+      label.setAttribute('transform',rotated?`rotate(-90 ${x} ${y})`:'');
+    });
+    if(remeasure) measure(true);
+  };
+  const fallbackFullscreen=()=>{shell._fullscreenFallback=true; applyOrientation();};
+  const toggleFullscreen=()=>{
+    if(fullscreen) {
+      if(doc.fullscreenElement===shell&&doc.exitFullscreen) doc.exitFullscreen();
+      else {shell._fullscreenFallback=false; applyOrientation();}
+      return;
+    }
+    if(shell.requestFullscreen) shell.requestFullscreen().catch(fallbackFullscreen);
+    else fallbackFullscreen();
+  };
+  listen(doc,'fullscreenchange',()=>{shell._fullscreenFallback=false; applyOrientation();});
+  if(data.image_data_url) scene.append(node('image',{href:data.image_data_url,width:data.room.width_mm,height:data.room.depth_mm,preserveAspectRatio:'none',opacity:.65}));
+  scene.append(node('rect',{width:data.room.width_mm,height:data.room.depth_mm,class:'room-border'}));
+  const assistLayer=node('g',{class:'assist-layer'}); scene.append(assistLayer);
+  const point=event=>{
+    const p=svg.createSVGPoint(); p.x=event.clientX; p.y=event.clientY;
+    const display=p.matrixTransform(svg.getScreenCTM().inverse());
+    return rotated?{x:display.y,y:data.room.depth_mm-display.x}:display;
+  };
   const snapUtilityPoint=(x,y,attached={x:null,y:null})=>{
     const rect=svg.getBoundingClientRect();
-    const xThreshold=rect.width>1?10*data.room.width_mm/rect.width:100;
-    const yThreshold=rect.height>1?10*data.room.depth_mm/rect.height:100;
+    const xPixels=rotated?rect.height:rect.width, yPixels=rotated?rect.width:rect.height;
+    const xThreshold=xPixels>1?10*data.room.width_mm/xPixels:100;
+    const yThreshold=yPixels>1?10*data.room.depth_mm/yPixels:100;
     const snapAxis=(value,maximum,latch,threshold)=>{
       const clamped=Math.max(0,Math.min(value,maximum)), release=threshold*1.8;
       if(latch===0&&clamped<=release) return {value:0,wall:0};
@@ -136,6 +179,15 @@ export default function(component) {
     const sx=snapAxis(x,data.room.width_mm,attached.x,xThreshold);
     const sy=snapAxis(y,data.room.depth_mm,attached.y,yThreshold);
     return {x:sx.value,y:sy.value,attached:{x:sx.wall,y:sy.wall}};
+  };
+  const positionUtilityVisual=(group,x,y)=>{
+    const mark=group.querySelector('.utility-mark'), hit=group.querySelector('.utility-hit');
+    if(!mark||!hit) return;
+    const unit=Number(mark.getAttribute('r'))/6||1, inset=8*unit;
+    const cx=x<=0?inset:x>=data.room.width_mm?-inset:0;
+    const cy=y<=0?inset:y>=data.room.depth_mm?-inset:0;
+    mark.setAttribute('cx',cx); mark.setAttribute('cy',cy);
+    hit.setAttribute('cx',cx); hit.setAttribute('cy',cy);
   };
   const button=(label,fn,parent=menu)=>{const b=doc.createElement('button'); b.type='button'; b.textContent=label; listen(b,'click',fn); parent.append(b); return b;};
   const command=(action,id)=>{closeMenu(); stopDelete(); send('action',{action,id});};
@@ -165,13 +217,14 @@ export default function(component) {
     const xAnchors=[moving.left,(moving.left+moving.right)/2,moving.right];
     const yAnchors=[moving.top,(moving.top+moving.bottom)/2,moving.bottom];
     const rect=svg.getBoundingClientRect();
-    const threshold=10*data.room.width_mm/Math.max(rect.width,1);
+    const xThreshold=10*data.room.width_mm/Math.max(rotated?rect.height:rect.width,1);
+    const yThreshold=10*data.room.depth_mm/Math.max(rotated?rect.width:rect.height,1);
     let bestX={distance:Infinity,adjust:0,target:null}, bestY={distance:Infinity,adjust:0,target:null};
     for(const anchor of xAnchors) for(const target of xTargets) {const adjust=target-anchor,distance=Math.abs(adjust); if(distance<bestX.distance) bestX={distance,adjust,target};}
     for(const anchor of yAnchors) for(const target of yTargets) {const adjust=target-anchor,distance=Math.abs(adjust); if(distance<bestY.distance) bestY={distance,adjust,target};}
     const guides={};
-    if(bestX.distance<=threshold) {dx+=bestX.adjust; guides.x=bestX.target;}
-    if(bestY.distance<=threshold) {dy+=bestY.adjust; guides.y=bestY.target;}
+    if(bestX.distance<=xThreshold) {dx+=bestX.adjust; guides.x=bestX.target;}
+    if(bestY.distance<=yThreshold) {dy+=bestY.adjust; guides.y=bestY.target;}
     return {...clampDelta(ids,dx,dy),guides};
   };
   const line=(x1,y1,x2,y2,label,className='measure-line')=>{
@@ -271,7 +324,11 @@ export default function(component) {
   listen(badge,'click',event=>{event.preventDefault(); event.stopPropagation(); if(event.detail===0&&deleteId) command('delete',deleteId);});
   listen(done,'click',stopDelete);
   listen(doc,'keydown',event=>{
-    if(event.key==='Escape') {closeAll(); utilityKind=''; shell._utilityKind=''; updateUtilityTools(); return;}
+    if(event.key==='Escape') {
+      closeAll(); utilityKind=''; shell._utilityKind=''; updateUtilityTools();
+      if(shell._fullscreenFallback) {shell._fullscreenFallback=false; applyOrientation();}
+      return;
+    }
     if(event.composedPath().some(e=>e.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(e.tagName))) return;
     if(event.ctrlKey||event.altKey||event.metaKey||event.repeat) return;
     if(['Delete','Backspace'].includes(event.key)&&selectedUtility) {
@@ -290,7 +347,7 @@ export default function(component) {
     const label=node('text',{x:w/2,y:d/2,'font-size':font,class:'furniture-label'});
     const title=node('tspan',{x:w/2,dy:'-.65em'}); title.textContent=item.name;
     const sub=node('tspan',{x:w/2,dy:'1.5em','font-weight':400}); sub.textContent=size;
-    label.append(title,sub); g.append(s,label); svg.append(g); groups.set(item.id,g);
+    label.append(title,sub); g.append(s,label); scene.append(g); groups.set(item.id,g);
     listen(s,'contextmenu',event=>{event.preventDefault(); if(event.pointerType==='touch'||event.pointerType==='pen'||win.performance.now()-lastTouch<1200) return; context(items.get(item.id),event);});
     listen(s,'dblclick',event=>{
       if(event.pointerType==='touch'||event.pointerType==='pen'||win.performance.now()-lastTouch<1200) return;
@@ -313,7 +370,7 @@ export default function(component) {
     g.dataset.utilityId=item.id;
     const hit=node('circle',{class:'utility-hit',r:22,fill:'transparent'});
     const dot=node('circle',{class:'utility-mark',r:6,fill:utilities[item.kind][1],stroke:'#333','stroke-width':1.5,'vector-effect':'non-scaling-stroke'});
-    const title=node('title'); title.textContent=utilities[item.kind][0]; g.append(hit,dot,title); svg.append(g); utilityGroups.set(item.id,g);
+    const title=node('title'); title.textContent=utilities[item.kind][0]; g.append(hit,dot,title); scene.append(g); utilityGroups.set(item.id,g);
     listen(g,'contextmenu',event=>{event.preventDefault(); event.stopPropagation(); selectUtility(item.id); utilityMenu(item,event);});
     listen(g,'focus',()=>selectUtility(item.id));
     listen(g,'keydown',event=>{
@@ -367,7 +424,9 @@ export default function(component) {
         utilityDrag.attached,
       );
       utilityDrag.preview=preview; utilityDrag.attached=preview.attached;
-      utilityGroups.get(utilityDrag.id)?.setAttribute('transform',`translate(${preview.x},${preview.y})`);
+      const group=utilityGroups.get(utilityDrag.id);
+      group?.setAttribute('transform',`translate(${preview.x},${preview.y})`);
+      if(group) positionUtilityVisual(group,preview.x,preview.y);
       return;
     }
     if(!drag) return;
@@ -419,7 +478,7 @@ export default function(component) {
   listen(svg,'lostpointercapture',()=>{if(drag||utilityDrag) cancel();});
   listen(doc,'pointerup',event=>pointers.delete(event.pointerId));
   listen(win,'blur',()=>{pointers.clear(); closeAll();});
-  renderAssists([...selected]); measure();
+  applyOrientation(false); renderAssists([...selected]); measure(true);
   shell._cleanup=()=>{win.clearTimeout(clickTimer); closeAll(); controller.abort(); observer.disconnect();};
   return shell._cleanup;
 }

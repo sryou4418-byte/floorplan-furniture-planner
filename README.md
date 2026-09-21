@@ -1,6 +1,6 @@
 # 도면 가구 배치 (Floorplan Furniture Planner)
 
-Codex 개발 재개: [AGENTS.md](AGENTS.md) → [최신 전체 인수인계](docs/HANDOFF.md)를 먼저 읽으세요. 현재 로컬 빌드는 v0.9.0입니다. 클라우드에는 별도 요청 시에만 업로드합니다.
+Codex 개발 재개: [AGENTS.md](AGENTS.md) → [최신 전체 인수인계](docs/HANDOFF.md)를 먼저 읽으세요. 현재 로컬 빌드는 v0.10.0입니다. 클라우드에는 별도 요청 시에만 업로드합니다.
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://hynx9cgxdvl7xfesmdm3ys.streamlit.app/)
 
@@ -8,8 +8,11 @@ Codex 개발 재개: [AGENTS.md](AGENTS.md) → [최신 전체 인수인계](doc
 
 - 공개 앱: https://hynx9cgxdvl7xfesmdm3ys.streamlit.app/
 
-## 현재 기능 (v0.9.0)
+## 현재 기능 (v0.10.0)
 
+- `도면 전체보기`로 작업판을 화면 전체에 표시하고, 세로형 호실은 자동으로 가로 회전
+- 전체보기에서도 가구 이름을 정방향으로 표시하고 우클릭 배치·편집, 드래그, 설비점 조작 유지
+- 벽·모서리에 정렬된 수도·전기·전기 3상 표시는 저장 좌표를 바꾸지 않고 화면 안쪽으로 표시해 잘림 방지
 - 수도·전기·전기 3상 점 마우스·터치 드래그 이동, 네 벽 자동 정렬과 중앙 자유 배치
 - 선택 설비점 `Delete`/`Backspace` 삭제, 기존 클릭·탭·우클릭 삭제 메뉴 유지
 - 누구나 읽고 저장할 수 있는 Supabase 공용 배치. 실시간 동기화 없이 명시적인 저장·불러오기와 버전 충돌 경고 제공

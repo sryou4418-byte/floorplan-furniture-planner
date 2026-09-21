@@ -13,7 +13,12 @@ function setup(extra={}) {
   const {window:w}=dom, doc=w.document, shell=doc.querySelector('.canvas-shell'), svg=doc.querySelector('svg');
   const events=[], timers=new Map(); let tid=0;
   Object.defineProperty(shell.querySelector('.canvas-viewport'),'clientWidth',{value:640,configurable:true});
+  Object.defineProperty(shell.querySelector('.canvas-viewport'),'clientHeight',{value:700,configurable:true});
   Object.defineProperty(w,'innerHeight',{value:900,writable:true});
+  let fullscreenElement=null;
+  Object.defineProperty(doc,'fullscreenElement',{get:()=>fullscreenElement,configurable:true});
+  shell.requestFullscreen=()=>{fullscreenElement=shell; doc.dispatchEvent(new w.Event('fullscreenchange')); return Promise.resolve();};
+  doc.exitFullscreen=()=>{fullscreenElement=null; doc.dispatchEvent(new w.Event('fullscreenchange')); return Promise.resolve();};
   w.setTimeout=fn=>{timers.set(++tid,fn); return tid;}; w.clearTimeout=id=>timers.delete(id);
   svg.createSVGPoint=()=>({x:0,y:0,matrixTransform(){return {x:this.x*10,y:this.y*10};}});
   svg.getScreenCTM=()=>({inverse:()=>({})}); svg.setPointerCapture=()=>{};
@@ -91,6 +96,24 @@ test('furniture-only rerender preserves fitted plan size',()=>{
   const cleanup=h.render({data,parentElement:h.doc,setTriggerValue:()=>{}});
   assert.equal(h.svg.style.width,width); assert.equal(h.svg.style.height,height);
   cleanup(); h.dom.window.close();
+});
+test('portrait fullscreen rotates the plan, keeps labels upright and maps right click to logical millimeters',()=>{
+  const h=setup({room:{width_mm:4000,depth_mm:8000}});
+  h.shell.querySelector('[data-tool="fullscreen"]').click();
+  assert.equal(h.shell.classList.contains('is-fullscreen'),true);
+  assert.equal(h.svg.getAttribute('viewBox'),'0 0 8000 4000');
+  assert.equal(h.svg.querySelector('.plan-scene').getAttribute('transform'),'matrix(0 1 -1 0 8000 0)');
+  assert.match(h.svg.querySelector('.furniture-label').getAttribute('transform'),/^rotate\(-90 /);
+  const blank=h.shell.querySelector('.room-border');
+  const event=new h.w.Event('contextmenu',{bubbles:true,cancelable:true});
+  Object.assign(event,{clientX:23,clientY:31,pointerType:'mouse'}); blank.dispatchEvent(event);
+  h.menu.querySelector('button').click();
+  assert.equal(h.events[0].action,'create');
+  assert.equal(h.events[0].x_mm,310); assert.equal(h.events[0].y_mm,7770);
+  h.shell.querySelector('[data-tool="fullscreen"]').click();
+  assert.equal(h.shell.classList.contains('is-fullscreen'),false);
+  assert.equal(h.svg.getAttribute('viewBox'),'0 0 4000 8000');
+  h.cleanup(); h.dom.window.close();
 });
 test('desktop blank context menu creates one sample at the saved plan point',()=>{
   const h=setup(), blank=h.shell.querySelector('.room-border');
@@ -176,6 +199,19 @@ test('new utility near a corner snaps to both walls',()=>{
   h.pointer(h.svg,'pointerdown',599,599,1,'mouse'); h.pointer(h.svg,'pointerup',599,599,1,'mouse');
   assert.equal(h.events.length,1); assert.equal(h.events[0].action,'utility_create');
   assert.equal(h.events[0].x_mm,6000); assert.equal(h.events[0].y_mm,6000);
+  h.cleanup(); h.dom.window.close();
+});
+test('wall and corner utility marks are inset visually without changing stored coordinates',()=>{
+  const h=setup({utility_points:[
+    {id:'u1',kind:'water',x_mm:0,y_mm:0},
+    {id:'u2',kind:'electric',x_mm:6000,y_mm:6000},
+  ]});
+  const groups=[...h.svg.querySelectorAll('.utility-point')];
+  const first=groups[0].querySelector('.utility-mark'), second=groups[1].querySelector('.utility-mark');
+  assert.ok(Number(first.getAttribute('cx'))>0); assert.ok(Number(first.getAttribute('cy'))>0);
+  assert.ok(Number(second.getAttribute('cx'))<0); assert.ok(Number(second.getAttribute('cy'))<0);
+  assert.equal(groups[0].getAttribute('transform'),'translate(0,0)');
+  assert.equal(groups[1].getAttribute('transform'),'translate(6000,6000)');
   h.cleanup(); h.dom.window.close();
 });
 
