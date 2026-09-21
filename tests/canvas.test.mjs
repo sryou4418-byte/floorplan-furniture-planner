@@ -145,6 +145,77 @@ test('utility drag, multitouch and cancellation do not place points',()=>{
   assert.equal(h.events.length,0); h.cleanup(); h.dom.window.close();
 });
 
+for(const device of ['mouse','touch']) {
+  test(`${device} drags a utility point and snaps it to the left wall`,()=>{
+    const h=setup({utility_points:[{id:'u1',kind:'water',x_mm:1000,y_mm:2000}]});
+    const point=h.svg.querySelector('.utility-hit');
+    h.pointer(point,'pointerdown',100,200,1,device);
+    h.pointer(h.svg,'pointermove',5,250,1,device);
+    h.pointer(h.svg,'pointerup',5,250,1,device);
+    assert.equal(h.events.length,1); assert.equal(h.events[0].action,'utility_move');
+    assert.equal(h.events[0].id,'u1'); assert.equal(h.events[0].x_mm,0); assert.equal(h.events[0].y_mm,2500);
+    h.cleanup(); h.dom.window.close();
+  });
+}
+
+test('wall-attached utility stays snapped until dragged sufficiently inward',()=>{
+  const h=setup({utility_points:[{id:'u1',kind:'electric',x_mm:0,y_mm:200}]});
+  const hit=h.svg.querySelector('.utility-hit'), group=h.svg.querySelector('.utility-point');
+  h.pointer(hit,'pointerdown',0,20,1,'mouse');
+  h.pointer(h.svg,'pointermove',15,30,1,'mouse');
+  assert.equal(group.getAttribute('transform'),'translate(0,300)');
+  h.pointer(h.svg,'pointermove',25,30,1,'mouse');
+  assert.equal(group.getAttribute('transform'),'translate(250,300)');
+  h.pointer(h.svg,'pointerup',25,30,1,'mouse');
+  assert.equal(h.events[0].x_mm,250);
+  h.cleanup(); h.dom.window.close();
+});
+
+test('new utility near a corner snaps to both walls',()=>{
+  const h=setup(); h.shell.querySelector('[data-utility="three_phase"]').click();
+  h.pointer(h.svg,'pointerdown',599,599,1,'mouse'); h.pointer(h.svg,'pointerup',599,599,1,'mouse');
+  assert.equal(h.events.length,1); assert.equal(h.events[0].action,'utility_create');
+  assert.equal(h.events[0].x_mm,6000); assert.equal(h.events[0].y_mm,6000);
+  h.cleanup(); h.dom.window.close();
+});
+
+for(const [label,x,y,expectedX,expectedY] of [
+  ['left',5,300,0,3000],['top',300,5,3000,0],
+  ['right',595,300,6000,3000],['bottom',300,595,3000,6000],
+  ['center',300,300,3000,3000],
+]) {
+  test(`new utility snaps to ${label} only when near a wall`,()=>{
+    const h=setup(); h.shell.querySelector('[data-utility="water"]').click();
+    h.pointer(h.svg,'pointerdown',x,y,1,'mouse'); h.pointer(h.svg,'pointerup',x,y,1,'mouse');
+    assert.equal(h.events[0].x_mm,expectedX); assert.equal(h.events[0].y_mm,expectedY);
+    h.cleanup(); h.dom.window.close();
+  });
+}
+
+test('selected utility deletes with keyboard while Delete inside an input is harmless',()=>{
+  const h=setup({utility_points:[{id:'u1',kind:'water',x_mm:100,y_mm:200}]});
+  const point=h.svg.querySelector('.utility-hit');
+  h.pointer(point,'pointerdown'); h.pointer(h.svg,'pointerup');
+  assert.equal(h.svg.querySelector('.utility-point').classList.contains('selected'),true);
+  const input=h.doc.createElement('input'); h.menu.append(input);
+  input.dispatchEvent(new h.w.KeyboardEvent('keydown',{key:'Delete',bubbles:true,composed:true}));
+  assert.equal(h.events.length,0);
+  h.doc.dispatchEvent(new h.w.KeyboardEvent('keydown',{key:'Backspace',bubbles:true}));
+  assert.equal(h.events.length,1); assert.equal(h.events[0].action,'utility_delete'); assert.equal(h.events[0].id,'u1');
+  h.cleanup(); h.dom.window.close();
+});
+
+for(const key of ['Delete','Backspace']) {
+  test(`${key} deletes only the selected utility point`,()=>{
+    const h=setup({utility_points:[{id:'u1',kind:'water',x_mm:100,y_mm:200},{id:'u2',kind:'electric',x_mm:300,y_mm:400}]});
+    const point=h.svg.querySelector('.utility-hit');
+    h.pointer(point,'pointerdown'); h.pointer(h.svg,'pointerup');
+    h.doc.dispatchEvent(new h.w.KeyboardEvent('keydown',{key,bubbles:true}));
+    assert.equal(h.events.length,1); assert.equal(h.events[0].action,'utility_delete'); assert.equal(h.events[0].id,'u1');
+    h.cleanup(); h.dom.window.close();
+  });
+}
+
 test('utility points render specified colors above furniture and delete only through their menu',()=>{
   const h=setup({utility_points:[{id:'u1',kind:'water',x_mm:100,y_mm:200},{id:'u2',kind:'electric',x_mm:300,y_mm:400},{id:'u3',kind:'three_phase',x_mm:500,y_mm:600}]});
   assert.deepEqual([...h.svg.querySelectorAll('.utility-mark')].map(e=>e.getAttribute('fill')),['#2563eb','#facc15','#ef4444']);

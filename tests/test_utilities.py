@@ -40,6 +40,42 @@ def test_delete_only_requested_point_and_legacy_files():
     assert Project.from_dict(legacy).utility_points == []
 
 
+def test_move_point_clamps_to_room_and_preserves_identity():
+    project = Project()
+    add(project, "electric", 100, 200)
+    point = project.utility_points[0]
+
+    utility_action(project, {
+        "action": "utility_move",
+        "id": point.id,
+        "x_mm": project.room.width_mm + 250,
+        "y_mm": -50,
+    })
+
+    assert project.utility_points == [point]
+    assert point.kind == "electric"
+    assert point.x_mm == project.room.width_mm
+    assert point.y_mm == 0
+
+
+def test_move_missing_or_invalid_point_does_not_mutate_project():
+    project = Project()
+    add(project)
+    original = project.to_dict()
+
+    with pytest.raises(ValueError):
+        utility_action(project, {
+            "action": "utility_move", "id": "missing", "x_mm": 10, "y_mm": 20,
+        })
+    with pytest.raises(ValueError):
+        utility_action(project, {
+            "action": "utility_move", "id": project.utility_points[0].id,
+            "x_mm": float("nan"), "y_mm": 20,
+        })
+
+    assert project.to_dict() == original
+
+
 @pytest.mark.parametrize("kind,x,y", [
     ("gas", 0, 0), ("water", float("nan"), 0), ("water", 0, float("inf")),
     ("electric", -1, 0), ("three_phase", 100000, 0), ("water", True, 0),

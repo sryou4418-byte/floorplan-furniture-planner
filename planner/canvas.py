@@ -2,7 +2,7 @@ from pathlib import Path
 
 import streamlit as st
 
-CANVAS_VERSION = "0.8.0-1"
+CANVAS_VERSION = "0.9.0-1"
 ROOT = Path(__file__).parent
 HTML = """
 <div class="canvas-shell">
@@ -22,7 +22,7 @@ HTML = """
     <button type="button" data-utility="electric" aria-pressed="false"><span class="utility-dot electric"></span>전기</button>
     <button type="button" data-utility="three_phase" aria-pressed="false"><span class="utility-dot three-phase"></span>전기 3상</button>
   </div>
-  <p class="utility-help">종류 선택 후 도면을 눌러 점 표시 · 점을 누르면 삭제 메뉴</p>
+  <p class="utility-help">점은 드래그로 이동 · 선택 후 Delete로 삭제</p>
   <div class="canvas-viewport"><svg id="planner-svg" role="application" aria-label="가구 배치 작업판" tabindex="0"></svg></div>
   <button class="delete-badge" type="button" aria-label="선택 가구 삭제" hidden>×</button>
   <button class="delete-done" type="button" hidden>삭제 모드 완료</button>
@@ -32,4 +32,4 @@ HTML = """
 """
 CSS = (ROOT / "canvas.css").read_text(encoding="utf-8")
 JS = (ROOT / "gesture.mjs").read_text(encoding="utf-8").replace("export class", "class") + "\n" + (ROOT / "canvas.js").read_text(encoding="utf-8")
-planner_canvas = st.components.v2.component("floorplan_furniture_canvas_v08_1", html=HTML, css=CSS, js=JS)
+planner_canvas = st.components.v2.component("floorplan_furniture_canvas_v09_1", html=HTML, css=CSS, js=JS)

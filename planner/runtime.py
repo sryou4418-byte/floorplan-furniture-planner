@@ -12,7 +12,10 @@ def ensure_build(version: str) -> None:
         if getattr(planner, "_loaded_build", None) == version:
             return
         # Dependencies first. Unimported modules will load normally afterwards.
-        for name in ("models", "geometry", "project_io", "presets", "workspace", "actions", "canvas"):
+        for name in (
+            "models", "geometry", "project_io", "presets", "workspace", "actions",
+            "server_storage", "canvas",
+        ):
             module = sys.modules.get(f"planner.{name}")
             if module is not None:
                 importlib.reload(module)

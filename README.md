@@ -1,6 +1,6 @@
 # 도면 가구 배치 (Floorplan Furniture Planner)
 
-Codex 개발 재개: [AGENTS.md](AGENTS.md) → [최신 전체 인수인계](docs/HANDOFF.md)를 먼저 읽으세요. 현재 로컬 빌드는 v0.8.0입니다. 클라우드에는 별도 요청 시에만 업로드합니다.
+Codex 개발 재개: [AGENTS.md](AGENTS.md) → [최신 전체 인수인계](docs/HANDOFF.md)를 먼저 읽으세요. 현재 로컬 빌드는 v0.9.0입니다. 클라우드에는 별도 요청 시에만 업로드합니다.
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://hynx9cgxdvl7xfesmdm3ys.streamlit.app/)
 
@@ -8,7 +8,12 @@ Codex 개발 재개: [AGENTS.md](AGENTS.md) → [최신 전체 인수인계](doc
 
 - 공개 앱: https://hynx9cgxdvl7xfesmdm3ys.streamlit.app/
 
-## 현재 기능 (v0.8.0)
+## 현재 기능 (v0.9.0)
+
+- 수도·전기·전기 3상 점 마우스·터치 드래그 이동, 네 벽 자동 정렬과 중앙 자유 배치
+- 선택 설비점 `Delete`/`Backspace` 삭제, 기존 클릭·탭·우클릭 삭제 메뉴 유지
+- 누구나 읽고 저장할 수 있는 Supabase 공용 배치. 실시간 동기화 없이 명시적인 저장·불러오기와 버전 충돌 경고 제공
+- 기존 `.fplan` 저장·불러오기는 로컬 백업·복원으로 유지
 
 - 상단 수도(파랑)·전기(노랑)·전기 3상(빨강) 선택 → 도면 클릭/탭으로 점 표시
 - 점을 누르면 삭제 메뉴, 가구 조작/Esc로 표시 종료. 호실별 유지 및 .fplan 저장/불러오기 지원
@@ -36,7 +41,7 @@ Codex 개발 재개: [AGENTS.md](AGENTS.md) → [최신 전체 인수인계](doc
 - 한국 날짜 기준 `호실배치_YYMMDD.fplan` 파일명, 이전 파일 불러오기 호환
 - 사각형/원형 선택, 원형은 지름 입력 및 원 기준 충돌 검사
 - 도면 배율 50~200%와 화면 맞춤, 얇은 외곽선, 이름 아래 크기 표시
-- 공유 저장은 없으며 새로고침·종료 전에 파일 저장 필요
+- Supabase가 연결되지 않은 경우에는 새로고침·종료 전 `.fplan` 파일 백업 필요
 
 개발 이력은 [CHANGELOG](CHANGELOG.md), 구조와 배포 절차는 [개발 인수인계](docs/DEVELOPMENT.md)를 참고하세요.
 
@@ -63,6 +68,15 @@ source .venv/bin/activate  # Windows: .venv\Scripts\activate
 pip install -r requirements.txt
 streamlit run app.py
 ```
+
+## Supabase 공용 저장 설정
+
+1. Supabase 프로젝트를 만들고 SQL Editor에서 [`supabase/migrations/20260921000000_public_workspace.sql`](supabase/migrations/20260921000000_public_workspace.sql)을 실행합니다.
+2. Supabase Dashboard의 Connect 화면에서 Project URL과 `sb_publishable_...` 키를 확인합니다.
+3. 로컬에서는 [`.streamlit/secrets.toml.example`](.streamlit/secrets.toml.example)을 참고해 `.streamlit/secrets.toml`을 만듭니다. 실제 Secrets 파일과 키는 Git에 추가하지 않습니다.
+4. Streamlit Community Cloud에서는 App settings → Secrets에 같은 두 값을 입력합니다.
+
+이 설정은 사용자 로그인을 요구하지 않습니다. 공개 앱 접속자는 누구나 `shared` 배치를 불러오고 저장할 수 있으므로, 중요한 시점에는 `.fplan` 백업을 남기세요. Supabase 공개 키만 사용하며 secret/service-role 키는 사용하지 않습니다.
 
 ## 테스트
 

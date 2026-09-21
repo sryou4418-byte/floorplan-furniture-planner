@@ -10,8 +10,10 @@ export default function(component) {
   const badge=shell.querySelector('.delete-badge'), done=shell.querySelector('.delete-done');
   const message=shell.querySelector('.canvas-message'); message.textContent='';
   const items=new Map(data.furniture.map(f=>[f.id,{...f}])), groups=new Map();
+  const utilityItems=new Map((data.utility_points||[]).map(p=>[p.id,{...p}])), utilityGroups=new Map();
   const selected=new Set(data.selected_ids||[]), gesture=new Gesture(), pointers=new Set();
-  let drag=null, timer=null, clickTimer=null, deleteId=null, deletePointer=null, busy=false, lastTouch=-Infinity;
+  let drag=null, utilityDrag=null, timer=null, clickTimer=null, deleteId=null, deletePointer=null, busy=false, lastTouch=-Infinity;
+  let selectedUtility=utilityItems.has(shell._selectedUtilityId)?shell._selectedUtilityId:null;
   let assistEnabled=shell._assistEnabled!==false;
   let utilityKind=shell._utilityKind||'';
   const utilities={water:['수도','#2563eb'],electric:['전기','#facc15'],three_phase:['전기 3상','#ef4444']};
@@ -24,15 +26,27 @@ export default function(component) {
     setTriggerValue(type,{...payload,room_key:data.room_key,nonce:win.crypto.randomUUID()});
   };
   const closeMenu=()=>{menu.hidden=true; const active=menu.getRootNode().activeElement; if(active&&menu.contains(active)) active.blur();};
+  const clearUtilitySelection=()=>{
+    selectedUtility=null; shell._selectedUtilityId=null;
+    for(const g of utilityGroups.values()) g.classList.remove('selected');
+  };
   const mark=ids=>{
+    clearUtilitySelection();
     selected.clear(); ids.forEach(id=>selected.add(id));
     for(const [id,g] of groups) g.querySelector('.furniture').classList.toggle('selected',selected.has(id));
+  };
+  const selectUtility=id=>{
+    selected.clear();
+    for(const g of groups.values()) g.querySelector('.furniture').classList.remove('selected');
+    selectedUtility=utilityItems.has(id)?id:null; shell._selectedUtilityId=selectedUtility;
+    for(const [utilityId,g] of utilityGroups) g.classList.toggle('selected',utilityId===selectedUtility);
   };
   const stopDelete=()=>{deleteId=null; deletePointer=null; badge.hidden=true; done.hidden=true; groups.forEach(g=>g.classList.remove('wiggle'));};
   const cancel=()=>{
     win.clearTimeout(timer); gesture.reset();
     if(drag) for(const id of drag.ids) {const f=items.get(id); groups.get(id)?.setAttribute('transform',`translate(${f.x_mm},${f.y_mm})`);}
-    drag=null;
+    if(utilityDrag) utilityGroups.get(utilityDrag.id)?.setAttribute('transform',`translate(${utilityDrag.item.x_mm},${utilityDrag.item.y_mm})`);
+    drag=null; utilityDrag=null;
   };
   const closeAll=()=>{closeMenu(); stopDelete(); cancel();};
   closeAll();
@@ -40,7 +54,7 @@ export default function(component) {
     shell.querySelectorAll('[data-utility]').forEach(b=>b.setAttribute('aria-pressed',String(b.dataset.utility===utilityKind)));
     shell.querySelector('.utility-help').textContent=utilityKind
       ? `${utilities[utilityKind][0]}: 도면을 눌러 점 표시 · 종료는 가구 조작 또는 Esc`
-      : '종류 선택 후 도면을 눌러 점 표시 · 점을 누르면 삭제 메뉴';
+      : '점은 드래그로 이동 · 선택 후 Delete로 삭제';
   };
   updateUtilityTools();
   for(const b of shell.querySelectorAll('[data-utility]')) listen(b,'click',()=>{
@@ -54,7 +68,7 @@ export default function(component) {
     badge.style.top=`${Math.max(v.top-s.top,Math.min(r.top-s.top-22,v.bottom-s.top-44))}px`;
   };
   const fit=()=>{
-    if(drag) return;
+    if(drag||utilityDrag) return;
     const ratio=data.room.width_mm/data.room.depth_mm;
     svg.style.width=`${baseWidth*zoom}px`; svg.style.height=`${baseWidth*zoom/ratio}px`;
     const unit=data.room.width_mm/(baseWidth*zoom);
@@ -107,6 +121,22 @@ export default function(component) {
   svg.append(node('rect',{width:data.room.width_mm,height:data.room.depth_mm,class:'room-border'}));
   const assistLayer=node('g',{class:'assist-layer'}); svg.append(assistLayer);
   const point=event=>{const p=svg.createSVGPoint(); p.x=event.clientX; p.y=event.clientY; return p.matrixTransform(svg.getScreenCTM().inverse());};
+  const snapUtilityPoint=(x,y,attached={x:null,y:null})=>{
+    const rect=svg.getBoundingClientRect();
+    const xThreshold=rect.width>1?10*data.room.width_mm/rect.width:100;
+    const yThreshold=rect.height>1?10*data.room.depth_mm/rect.height:100;
+    const snapAxis=(value,maximum,latch,threshold)=>{
+      const clamped=Math.max(0,Math.min(value,maximum)), release=threshold*1.8;
+      if(latch===0&&clamped<=release) return {value:0,wall:0};
+      if(latch===maximum&&maximum-clamped<=release) return {value:maximum,wall:maximum};
+      if(clamped<=threshold) return {value:0,wall:0};
+      if(maximum-clamped<=threshold) return {value:maximum,wall:maximum};
+      return {value:clamped,wall:null};
+    };
+    const sx=snapAxis(x,data.room.width_mm,attached.x,xThreshold);
+    const sy=snapAxis(y,data.room.depth_mm,attached.y,yThreshold);
+    return {x:sx.value,y:sy.value,attached:{x:sx.wall,y:sy.wall}};
+  };
   const button=(label,fn,parent=menu)=>{const b=doc.createElement('button'); b.type='button'; b.textContent=label; listen(b,'click',fn); parent.append(b); return b;};
   const command=(action,id)=>{closeMenu(); stopDelete(); send('action',{action,id});};
   const boxOf=(item,dx=0,dy=0)=>{
@@ -243,8 +273,11 @@ export default function(component) {
   listen(doc,'keydown',event=>{
     if(event.key==='Escape') {closeAll(); utilityKind=''; shell._utilityKind=''; updateUtilityTools(); return;}
     if(event.composedPath().some(e=>e.isContentEditable||/^(INPUT|TEXTAREA|SELECT)$/.test(e.tagName))) return;
-    if(event.composedPath().some(e=>e.classList?.contains('utility-point'))) return;
-    if(event.ctrlKey||event.altKey||event.metaKey||event.repeat||!menu.hidden) return;
+    if(event.ctrlKey||event.altKey||event.metaKey||event.repeat) return;
+    if(['Delete','Backspace'].includes(event.key)&&selectedUtility) {
+      event.preventDefault(); const id=selectedUtility; selectUtility(null); closeMenu(); send('action',{action:'utility_delete',id}); return;
+    }
+    if(!menu.hidden) return;
     if(['Delete','Backspace'].includes(event.key)&&selected.size) {event.preventDefault(); send('delete',{ids:[...selected]});}
   });
   for(const item of items.values()) {
@@ -265,7 +298,7 @@ export default function(component) {
     });
   }
   const utilityMenu=(item,event)=>{
-    closeAll(); win.clearTimeout(clickTimer); menu.replaceChildren(); menu.hidden=false;
+    closeAll(); selectUtility(item.id); win.clearTimeout(clickTimer); menu.replaceChildren(); menu.hidden=false;
     menu.classList.remove('quick-editor'); menu.classList.add('floating');
     const r=shell.getBoundingClientRect(); menu.style.width='220px';
     menu.style.left=`${Math.max(4,Math.min(event.clientX-r.left,r.width-228))}px`;
@@ -273,15 +306,16 @@ export default function(component) {
     button(`${utilities[item.kind][0]} 표시 삭제`,()=>command('utility_delete',item.id));
     button('닫기',closeMenu);
   };
-  for(const item of data.utility_points||[]) {
+  for(const item of utilityItems.values()) {
     if(!utilities[item.kind]) continue;
-    const g=node('g',{class:'utility-point',transform:`translate(${item.x_mm},${item.y_mm})`,
-      role:'button',tabindex:'0','aria-label':`${utilities[item.kind][0]} 표시: 삭제 메뉴 열기`});
+    const g=node('g',{class:`utility-point${selectedUtility===item.id?' selected':''}`,transform:`translate(${item.x_mm},${item.y_mm})`,
+      role:'button',tabindex:'0','aria-label':`${utilities[item.kind][0]} 표시: 이동 또는 삭제 메뉴 열기`});
     g.dataset.utilityId=item.id;
     const hit=node('circle',{class:'utility-hit',r:22,fill:'transparent'});
     const dot=node('circle',{class:'utility-mark',r:6,fill:utilities[item.kind][1],stroke:'#333','stroke-width':1.5,'vector-effect':'non-scaling-stroke'});
-    const title=node('title'); title.textContent=utilities[item.kind][0]; g.append(hit,dot,title); svg.append(g);
-    listen(g,'contextmenu',event=>{event.preventDefault(); event.stopPropagation(); utilityMenu(item,event);});
+    const title=node('title'); title.textContent=utilities[item.kind][0]; g.append(hit,dot,title); svg.append(g); utilityGroups.set(item.id,g);
+    listen(g,'contextmenu',event=>{event.preventDefault(); event.stopPropagation(); selectUtility(item.id); utilityMenu(item,event);});
+    listen(g,'focus',()=>selectUtility(item.id));
     listen(g,'keydown',event=>{
       if(['Enter',' '].includes(event.key)) {event.preventDefault(); const r=g.getBoundingClientRect(); utilityMenu(item,{clientX:r.right,clientY:r.top});}
     });
@@ -297,8 +331,17 @@ export default function(component) {
     const utilityTarget=event.target.closest?.('.utility-point')?.dataset.utilityId;
     if(utilityTarget||utilityKind) {
       closeAll(); win.clearTimeout(clickTimer);
+      const touch=event.pointerType==='touch'||event.pointerType==='pen';
       gesture.start(event.pointerId,event.clientX,event.clientY,event.timeStamp,
-        event.pointerType!=='mouse',utilityTarget?`utility:${utilityTarget}`:'utility:create');
+        touch,utilityTarget?`utility:${utilityTarget}`:'utility:create');
+      if(utilityTarget) {
+        event.preventDefault(); selectUtility(utilityTarget);
+        const item=utilityItems.get(utilityTarget), start=point(event);
+        utilityDrag={id:utilityTarget,item,start,preview:null,attached:{
+          x:item.x_mm===0||item.x_mm===data.room.width_mm?item.x_mm:null,
+          y:item.y_mm===0||item.y_mm===data.room.depth_mm?item.y_mm:null,
+        }};
+      } else selectUtility(null);
       svg.setPointerCapture(event.pointerId); return;
     }
     const target=event.target.closest?.('.furniture')?.parentElement.dataset.id||null;
@@ -307,6 +350,7 @@ export default function(component) {
     if(touch) lastTouch=win.performance.now();
     gesture.start(event.pointerId,event.clientX,event.clientY,event.timeStamp,touch,target);
     if(!target) {if(!menu.hidden) {closeMenu(); gesture.reset();} return;}
+    clearUtilitySelection();
     event.preventDefault(); svg.setPointerCapture(event.pointerId);
     const item=items.get(target), ids=item.group?[...items.values()].filter(f=>f.group===item.group).map(f=>f.id):selected.has(target)&&selected.size>1?[...selected]:[target];
     drag={ids,start:point(event),target,touch};
@@ -315,6 +359,17 @@ export default function(component) {
   listen(svg,'pointermove',event=>{
     if(!gesture.move(event.pointerId,event.clientX,event.clientY)) return;
     win.clearTimeout(timer);
+    if(utilityDrag) {
+      closeMenu(); const p=point(event);
+      const preview=snapUtilityPoint(
+        utilityDrag.item.x_mm+p.x-utilityDrag.start.x,
+        utilityDrag.item.y_mm+p.y-utilityDrag.start.y,
+        utilityDrag.attached,
+      );
+      utilityDrag.preview=preview; utilityDrag.attached=preview.attached;
+      utilityGroups.get(utilityDrag.id)?.setAttribute('transform',`translate(${preview.x},${preview.y})`);
+      return;
+    }
     if(!drag) return;
     closeMenu(); stopDelete(); const p=point(event);
     const snapped=snapDelta(drag.ids,p.x-drag.start.x,p.y-drag.start.y,event.altKey||drag.touch);
@@ -325,15 +380,23 @@ export default function(component) {
   listen(svg,'pointerup',event=>{
     pointers.delete(event.pointerId); win.clearTimeout(timer);
     const utilityTarget=gesture.current?.target;
-    const current=drag, outcome=gesture.end(event.pointerId,event.clientX,event.clientY,event.timeStamp); drag=null;
+    const current=drag, currentUtility=utilityDrag;
+    const outcome=gesture.end(event.pointerId,event.clientX,event.clientY,event.timeStamp); drag=null; utilityDrag=null;
     if(utilityTarget?.startsWith('utility:')) {
-      if(outcome!=='tap') return;
       if(utilityTarget==='utility:create') {
-        const p=point(event);
-        if(p.x>=0&&p.y>=0&&p.x<=data.room.width_mm&&p.y<=data.room.depth_mm)
-          send('action',{action:'utility_create',kind:utilityKind,x_mm:p.x,y_mm:p.y});
-      } else {
-        const item=(data.utility_points||[]).find(p=>p.id===utilityTarget.slice(8));
+        if(outcome==='tap') {
+          const p=point(event);
+          if(p.x>=0&&p.y>=0&&p.x<=data.room.width_mm&&p.y<=data.room.depth_mm) {
+            const snapped=snapUtilityPoint(p.x,p.y);
+            send('action',{action:'utility_create',kind:utilityKind,x_mm:snapped.x,y_mm:snapped.y});
+          }
+        }
+      } else if(outcome==='drag'&&currentUtility) {
+        const final=currentUtility.preview||snapUtilityPoint(currentUtility.item.x_mm,currentUtility.item.y_mm,currentUtility.attached);
+        Object.assign(currentUtility.item,{x_mm:final.x,y_mm:final.y});
+        send('action',{action:'utility_move',id:currentUtility.id,x_mm:final.x,y_mm:final.y});
+      } else if(outcome==='tap') {
+        const item=utilityItems.get(utilityTarget.slice(8));
         if(item) utilityMenu(item,event);
       }
       return;
@@ -353,7 +416,7 @@ export default function(component) {
     } else if(outcome==='create') {const p=point(event); send('action',{action:'create',x_mm:p.x,y_mm:p.y});}
   });
   listen(svg,'pointercancel',event=>{pointers.delete(event.pointerId); cancel();});
-  listen(svg,'lostpointercapture',()=>{if(drag) cancel();});
+  listen(svg,'lostpointercapture',()=>{if(drag||utilityDrag) cancel();});
   listen(doc,'pointerup',event=>pointers.delete(event.pointerId));
   listen(win,'blur',()=>{pointers.clear(); closeAll();});
   renderAssists([...selected]); measure();

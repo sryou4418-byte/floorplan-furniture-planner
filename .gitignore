@@ -6,3 +6,4 @@ __pycache__/
 *.fplan
 .DS_Store
 node_modules/
+.streamlit/secrets.toml

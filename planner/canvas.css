@@ -15,9 +15,10 @@
 .utility-dot.electric { background:#facc15; }
 .utility-dot.three-phase { background:#ef4444; }
 .utility-help { margin:6px 0 10px; font-size:12px; color:#62666d; }
-.utility-point { cursor:pointer; }
+.utility-point { cursor:grab; touch-action:none; }
+.utility-point:active { cursor:grabbing; }
 .utility-mark { pointer-events:none; }
-.utility-point:focus-visible .utility-mark { stroke:#111; stroke-width:3; }
+.utility-point:focus-visible .utility-mark, .utility-point.selected .utility-mark { stroke:#007aff; stroke-width:3; }
 .zoom-value { min-width:44px; text-align:center; font-size:13px; }
 .canvas-help { font-size:12px; color:#62666d; margin-left:auto; }
 .assist-toggle[aria-pressed="true"] { color:#075985; border-color:#7dd3fc; background:#f0f9ff; }

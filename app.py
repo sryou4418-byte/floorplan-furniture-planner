@@ -9,8 +9,8 @@ import streamlit as st
 
 from planner.runtime import ensure_build
 
-VERSION = "0.8.0"
-BUILD_ID = "0.8.0-1"
+VERSION = "0.9.0"
+BUILD_ID = "0.9.0-1"
 ensure_build(BUILD_ID)
 
 import planner.canvas as canvas_module
@@ -25,6 +25,11 @@ from planner.actions import (
 from planner.geometry import analyze, occupied_ratio
 from planner.models import Furniture, Room
 from planner.presets import PRESETS_BY_LABEL
+from planner.server_storage import (
+    ServerConflictError,
+    ServerStorageError,
+    SupabaseWorkspaceStore,
+)
 from planner.workspace import Workspace, download_name, export_workspace, import_workspace
 
 planner_canvas = canvas_module.planner_canvas
@@ -71,6 +76,32 @@ def init_state():
         st.session_state.workspace_build = BUILD_ID
     st.session_state.project = st.session_state.workspace.project
     st.session_state.setdefault("selected_ids", [])
+
+
+def configured_server_store():
+    try:
+        url = st.secrets["SUPABASE_URL"]
+        key = st.secrets["SUPABASE_PUBLISHABLE_KEY"]
+    except (KeyError, FileNotFoundError):
+        return None, None
+    try:
+        return SupabaseWorkspaceStore(url, key), None
+    except ServerStorageError as exc:
+        return None, str(exc)
+
+
+def apply_workspace(work):
+    st.session_state.workspace = work
+    st.session_state.project = work.project
+    st.session_state.selected_ids = []
+    clear_edit_widgets()
+    clear_note_widgets()
+
+
+def apply_server_record(record):
+    apply_workspace(import_workspace(record.data))
+    st.session_state.server_revision = record.revision
+    st.session_state.server_updated_at = record.updated_at
 
 
 def event_payload(name):
@@ -129,8 +160,9 @@ def action_from_canvas():
     if not payload:
         return
     try:
-        if payload["action"] in ("utility_create", "utility_delete"):
+        if payload["action"] in ("utility_create", "utility_move", "utility_delete"):
             utility_action(st.session_state.project, payload)
+            st.session_state.selected_ids = []
         elif payload["action"] == "create":
             st.session_state.selected_ids = create_sample(
                 st.session_state.project, payload["x_mm"], payload["y_mm"]
@@ -183,6 +215,18 @@ def status_payload(project):
 
 
 init_state()
+server_store, server_config_error = configured_server_store()
+if "server_sync_initialized" not in st.session_state:
+    st.session_state.server_sync_initialized = True
+    st.session_state.server_revision = None
+    st.session_state.server_updated_at = ""
+    if server_store is not None:
+        try:
+            initial_record = server_store.load()
+            if initial_record is not None:
+                apply_server_record(initial_record)
+        except ServerStorageError as exc:
+            st.session_state.server_notice = str(exc)
 st.session_state.canvas_revision = st.session_state.get("canvas_revision", 0) + 1
 project = st.session_state.project
 selected = next((item for item in project.furniture if item.id in st.session_state.selected_ids), None)
@@ -391,16 +435,55 @@ with list_column:
             st.toast("현재 호실 메모를 저장했습니다.")
         st.caption("입력 후 저장하세요. 이 호실에만 저장됩니다.")
 
-with st.expander("프로젝트 저장 / 불러오기"):
+with st.expander("서버 저장 / 불러오기", expanded=True):
+    st.caption("공용 배치입니다. 앱에 접속한 누구나 서버 내용을 저장하고 바꿀 수 있습니다.")
+    server_notice = st.session_state.pop("server_notice", None)
+    if server_notice:
+        st.warning(server_notice)
+    if server_config_error:
+        st.error(server_config_error)
+    elif server_store is None:
+        st.info("Supabase 연결 설정 후 서버 저장을 사용할 수 있습니다.")
+    else:
+        load_column, save_column = st.columns(2)
+        with load_column:
+            if st.button("최신 서버 배치 불러오기", use_container_width=True):
+                try:
+                    record = server_store.load()
+                    if record is None:
+                        st.info("아직 서버에 저장된 배치가 없습니다.")
+                    else:
+                        apply_server_record(record)
+                        st.session_state.server_notice = "최신 서버 배치를 불러왔습니다."
+                        st.rerun()
+                except ServerStorageError as exc:
+                    st.error(str(exc))
+        with save_column:
+            if st.button("현재 배치를 서버에 저장", type="primary", use_container_width=True):
+                note_key = f"room_note_{st.session_state.workspace.active}"
+                if note_key in st.session_state:
+                    save_room_note(st.session_state.workspace.active, note_key)
+                try:
+                    record = server_store.save(
+                        export_workspace(st.session_state.workspace),
+                        st.session_state.server_revision,
+                    )
+                    st.session_state.server_revision = record.revision
+                    st.session_state.server_updated_at = record.updated_at
+                    st.success("서버에 저장했습니다.")
+                except ServerConflictError as exc:
+                    st.error(str(exc))
+                except ServerStorageError as exc:
+                    st.error(str(exc))
+        if st.session_state.server_revision is not None:
+            st.caption(f"현재 불러온 서버 버전: {st.session_state.server_revision}")
+
+with st.expander("파일 백업 / 불러오기"):
     imported = st.file_uploader("프로젝트 불러오기", type=["fplan"], key="project_upload")
     if imported and st.button("프로젝트 적용", use_container_width=True):
         try:
             work = import_workspace(imported.getvalue())
-            st.session_state.workspace = work
-            st.session_state.project = work.project
-            st.session_state.selected_ids = []
-            clear_edit_widgets()
-            clear_note_widgets()
+            apply_workspace(work)
             st.rerun()
         except ValueError as exc:
             st.error(str(exc))

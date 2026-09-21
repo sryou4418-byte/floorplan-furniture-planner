@@ -11,6 +11,7 @@
 - planner/canvas.py: SVG 표시와 이벤트. 비율 변환은 getScreenCTM().inverse() 사용.
 - planner/canvas.js / canvas.css: 작업판 UI 및 포인터 이벤트/표시. gesture.mjs는 순수 상태 전이 분류로 Node 테스트 대상.
 - planner/actions.py: 이름 변경·회전·복사·삭제 공통 명령. 복사는 그룹을 해제하고 안전한 후보 위치 탐색.
+- planner/server_storage.py: Supabase Data REST API 공용 작업공간 저장·불러오기, 크기·응답 검증, revision 충돌 방지.
 - planner/project_io.py: v1 단일 호실 입출력. 기존 파일 호환을 유지한다.
 - planner/presets.py: 처음 여는 호실의 기본값에만 apply. 재방문 시 apply 금지.
 
@@ -19,7 +20,7 @@
 1. 사용자 요구사항과 CHANGELOG를 먼저 대조한다. 완료를 알리기 전 누락 여부 확인.
 2. 호실 전환·저장·불러오기·드래그 입력값 동기화에 회귀 테스트를 추가한다.
 3. 파일 읽기 크기 제한과 스키마 검증 유지. 업로드 파일 내용을 실행하지 않는다.
-4. 공유 저장/외부 데이터베이스는 사용자 승인 없이 추가하지 않는다.
+4. Supabase 공용 저장은 v0.9.0에서 사용자가 명시적으로 승인했다. 로그인·실시간 동기화·다중 프로젝트는 추가 승인 없이 확장하지 않는다.
 5. PDF 원본, 배치도, 층 전체 도면을 추가 공개하지 않는다.
 6. 매 빌드 CHANGELOG에 버전·변경·검증·미해결 항목을 기록하고 UI 버전과 맞춘다.
 7. python -m pytest -q, python -m ruff check ., git diff --check 실행.

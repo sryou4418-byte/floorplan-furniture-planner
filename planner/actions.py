@@ -16,6 +16,19 @@ def utility_action(project: Project, payload: dict) -> None:
                 and 0 <= point.y_mm <= project.room.depth_mm):
             raise ValueError("도면 안에 설비 표시를 찍어 주세요.")
         project.utility_points.append(point)
+    elif payload["action"] == "utility_move":
+        point = next((p for p in project.utility_points if p.id == payload.get("id")), None)
+        if point is None:
+            raise ValueError("선택한 설비 표시를 찾을 수 없습니다.")
+        candidate = UtilityPoint(
+            point.kind,
+            payload.get("x_mm"),
+            payload.get("y_mm"),
+            id=point.id,
+        )
+        candidate.validate()
+        point.x_mm = round(max(0.0, min(candidate.x_mm, project.room.width_mm)), 1)
+        point.y_mm = round(max(0.0, min(candidate.y_mm, project.room.depth_mm)), 1)
     elif payload["action"] == "utility_delete":
         project.utility_points = [p for p in project.utility_points if p.id != payload["id"]]
     else:
