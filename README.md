@@ -1,5 +1,7 @@
 # 도면 가구 배치 (Floorplan Furniture Planner)
 
+개발 변경·향후 개선 기록은 날짜·시간과 로컬/클라우드 환경을 포함해 [인수인계](docs/HANDOFF.md) 최상단에 남깁니다. 최신 코드 비교는 Git 커밋 관계를 우선합니다.
+
 Codex 개발 재개: [AGENTS.md](AGENTS.md) → [최신 전체 인수인계](docs/HANDOFF.md)를 먼저 읽으세요. 현재 로컬 빌드는 v0.10.0입니다. 클라우드에는 별도 요청 시에만 업로드합니다.
 
 [![Streamlit App](https://static.streamlit.io/badges/streamlit_badge_black_white.svg)](https://hynx9cgxdvl7xfesmdm3ys.streamlit.app/)
